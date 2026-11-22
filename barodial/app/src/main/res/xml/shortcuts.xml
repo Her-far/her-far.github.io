@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 런처 아이콘을 길게 누르면 나오는 바로가기: 바로 검색 / 바로 키패드 -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutId="search"
+        android:shortcutLongLabel="@string/shortcut_search_long"
+        android:shortcutShortLabel="@string/shortcut_search">
+        <intent
+            android:action="io.github.herfar.barodial.action.SEARCH"
+            android:targetClass="io.github.herfar.barodial.MainActivity"
+            android:targetPackage="io.github.herfar.barodial" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_dialpad"
+        android:shortcutId="keypad"
+        android:shortcutLongLabel="@string/shortcut_keypad_long"
+        android:shortcutShortLabel="@string/shortcut_keypad">
+        <intent
+            android:action="io.github.herfar.barodial.action.KEYPAD"
+            android:targetClass="io.github.herfar.barodial.MainActivity"
+            android:targetPackage="io.github.herfar.barodial" />
+    </shortcut>
+</shortcuts>

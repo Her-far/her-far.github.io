@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 실제 화면 테마는 Compose(Material 3)에서 적용한다. 여기서는 창 배경만 지정한다. -->
+    <style name="Theme.BaroDial" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

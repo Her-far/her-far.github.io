@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">바로전화</string>
+
+    <!-- 바로가기 -->
+    <string name="shortcut_search">검색</string>
+    <string name="shortcut_search_long">이름, 전화번호 검색</string>
+    <string name="shortcut_keypad">키패드</string>
+    <string name="shortcut_keypad_long">키패드로 전화 걸기</string>
+
+    <!-- 탭 -->
+    <string name="tab_home">홈</string>
+    <string name="tab_contacts">연락처</string>
+    <string name="tab_favorites">즐겨찾기</string>
+    <string name="tab_recents">최근기록</string>
+    <string name="keypad">키패드</string>
+
+    <!-- 공통 동작 -->
+    <string name="action_call">전화</string>
+    <string name="action_call_target">%1$s 전화 걸기</string>
+    <string name="action_sms">문자</string>
+    <string name="action_sms_target">%1$s 문자 보내기</string>
+    <string name="action_add_contact">연락처에 추가</string>
+    <string name="action_new_contact">새 연락처</string>
+    <string name="action_back">뒤로</string>
+    <string name="action_close">닫기</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_delete">삭제</string>
+    <string name="action_done">완료</string>
+    <string name="action_edit">편집</string>
+    <string name="action_clear_all">모두 지우기</string>
+    <string name="action_copy_number">번호 복사</string>
+    <string name="action_favorite">즐겨찾기에 추가</string>
+    <string name="action_unfavorite">즐겨찾기에서 빼기</string>
+    <string name="action_edit_in_contacts">연락처 앱에서 편집</string>
+    <string name="action_view_in_contacts">연락처 앱에서 보기</string>
+    <string name="action_open_detail">상세정보 보기</string>
+    <string name="action_open_app_settings">앱 설정(권한) 열기</string>
+    <string name="default_phone_app">기본 전화 앱</string>
+    <string name="unknown_number">발신번호 표시제한</string>
+
+    <!-- 검색 -->
+    <string name="search_placeholder">이름, 전화번호 검색</string>
+    <string name="search_title">검색</string>
+    <string name="search_close">검색 닫기</string>
+    <string name="search_clear">검색어 지우기</string>
+    <string name="search_recent_title">최근 검색</string>
+    <string name="search_result_count">연락처 %1$d건</string>
+    <string name="search_empty_history">최근 검색 기록이 없습니다.\n이름, 초성(예: ㄱㅊㅅ), 번호 일부를 입력해 보세요.</string>
+    <string name="search_no_result">‘%1$s’와 일치하는 연락처가 없습니다.</string>
+    <string name="search_dial_this_number">이 번호로 전화 걸기</string>
+    <string name="search_recent_number">최근 검색·발신</string>
+    <string name="search_from_call_log">통화기록</string>
+    <string name="search_remove_history">기록에서 삭제</string>
+    <string name="search_clear_history">검색 기록 모두 지우기</string>
+
+    <!-- 홈 -->
+    <string name="home_favorites">즐겨찾기</string>
+    <string name="home_see_all">모두 보기</string>
+    <string name="home_frequent">자주 거는 연락처</string>
+    <string name="home_recent">최근 찾은 연락처</string>
+    <string name="home_favorite_tap_to_call">%1$s, 누르면 바로 전화</string>
+    <string name="home_hint_title">아래 검색창을 눌러 보세요</string>
+    <string name="home_hint_body">이름, 초성(ㄱㅊㅅ), 회사명, 번호 일부로 바로 찾을 수 있습니다.\n연락처 상세에서 ☆을 누르면 즐겨찾기가 이곳에 표시됩니다.</string>
+
+    <!-- 연락처 -->
+    <string name="contacts_count">%1$d명</string>
+    <string name="contacts_empty">전화번호가 저장된 연락처가 없습니다.</string>
+    <string name="contacts_error_title">연락처를 불러오지 못했습니다</string>
+    <string name="contacts_fast_scroll">초성 빠른 이동</string>
+
+    <!-- 권한 -->
+    <string name="permission_contacts_title">연락처 검색을 허용해 주세요</string>
+    <string name="permission_contacts_body">이름·초성·번호로 연락처를 찾으려면 연락처 읽기 권한이 필요합니다. 연락처는 이 기기 안에서만 검색에 사용되며 외부로 전송되지 않습니다. 허용하지 않아도 키패드로 번호를 입력해 전화를 걸 수 있습니다.</string>
+    <string name="permission_contacts_allow">연락처 권한 허용</string>
+
+    <!-- 상세 -->
+    <string name="detail_not_found">연락처를 찾을 수 없습니다. 삭제되었거나 연락처 앱에서 합쳐졌을 수 있습니다.</string>
+    <string name="detail_favorite_on">즐겨찾기됨</string>
+    <string name="detail_favorite_off">즐겨찾기</string>
+    <string name="detail_default_number">기본 번호</string>
+    <string name="detail_preferred_number">바로 걸기 번호</string>
+    <string name="detail_set_preferred">이 번호로 바로 걸기</string>
+    <string name="detail_unset_preferred">바로 걸기 번호 해제</string>
+    <string name="detail_favorite_note">☆ 즐겨찾기는 이 앱에만 저장됩니다. 연락처 앱의 즐겨찾기를 바꾸려면 ‘연락처 앱에서 편집’을 이용하세요. 번호를 길게 누르면 복사하거나 바로 걸기 번호로 지정할 수 있습니다.</string>
+    <string name="detail_call_history_title">통화기록 %1$d건 · 총 %2$s</string>
+    <string name="detail_call_history_empty">이 연락처와의 통화기록이 없습니다.</string>
+
+    <!-- 번호 선택 -->
+    <string name="picker_title">%1$s에게 걸 번호</string>
+    <string name="picker_remember">다음부터 이 번호로 바로 걸기</string>
+
+    <!-- 키패드 -->
+    <string name="dialer_hint">번호를 누르면 일치하는 연락처가 여기에 표시됩니다.\n번호 영역을 길게 누르면 붙여넣기</string>
+    <string name="dialer_backspace">한 글자 지우기</string>
+    <string name="dialer_clear">모두 지우기</string>
+    <string name="dialer_paste">붙여넣기</string>
+
+    <!-- 즐겨찾기 -->
+    <string name="favorites_empty">즐겨찾기가 없습니다.\n연락처 상세에서 ☆을 눌러 추가하세요.</string>
+    <string name="favorites_hint">누르면 바로 전화, 길게 누르면 상세정보</string>
+    <string name="favorites_edit_hint">화살표로 순서를 바꾸고, 휴지통으로 즐겨찾기에서 뺄 수 있습니다.</string>
+    <string name="favorites_system_title">연락처 앱 즐겨찾기</string>
+    <string name="favorites_system_note">휴대전화 연락처 앱에서 즐겨찾기로 지정한 연락처입니다. 편집 화면에서 ★을 누르면 이 앱 즐겨찾기로 가져옵니다.</string>
+    <string name="favorites_system_item">연락처 앱 즐겨찾기</string>
+    <string name="favorites_move_up">%1$s 위로 이동</string>
+    <string name="favorites_move_down">%1$s 아래로 이동</string>
+    <string name="favorites_add_to_app">%1$s 앱 즐겨찾기에 추가</string>
+
+    <!-- 최근기록 -->
+    <string name="recents_unavailable_title">통화기록은 %1$s에서 확인하세요</string>
+    <string name="recents_unavailable_body">바로전화는 삼성 전화를 기본 전화 앱으로 그대로 두기 위해 ‘기본 전화 앱’ 역할을 요청하지 않습니다.\n\nAndroid는 통화기록 읽기(READ_CALL_LOG)를 강하게 제한된 권한(hard-restricted)으로 분류해, 기본 전화 앱 같은 특정 역할의 앱이나 설치 과정에서 허용 목록에 오른 앱만 사용할 수 있게 합니다. 그래서 이 기본 버전은 통화기록을 읽지 않으며, 기록을 흉내 낸 목록도 만들지 않습니다.\n\n최근 통화와 부재중 전화는 아래 버튼으로 바로 확인할 수 있습니다.</string>
+    <string name="recents_open_system">%1$s에서 최근기록 보기</string>
+    <string name="recents_open_dialer">%1$s 열기</string>
+    <string name="recents_permission_title">통화기록 권한이 필요합니다 (실험 빌드)</string>
+    <string name="recents_permission_body">이 실험용 빌드는 통화기록을 이 앱 안에서 보여 주기 위해 통화기록 읽기 권한을 요청합니다. 기록은 기기 밖으로 전송되지 않습니다.\n\nAndroid 정책상 설치 방식에 따라 권한 창이 뜨지 않고 곧바로 거부될 수 있습니다.</string>
+    <string name="recents_permission_allow">통화기록 권한 요청</string>
+    <string name="recents_denied_title">통화기록 권한이 허용되지 않았습니다</string>
+    <string name="recents_denied_body">통화기록 읽기는 Android의 강하게 제한된 권한이라, 설치 프로그램이 허용 목록에 올리지 않은 앱은 권한 창 없이 거부됩니다. 앱 설정에서 ‘권한’ 또는 ‘제한된 설정 허용’ 메뉴가 보이면 허용할 수 있습니다. 그렇지 않으면 삼성 전화에서 기록을 확인하세요. (자세한 방법은 README 참고)</string>
+    <string name="recents_empty">표시할 통화기록이 없습니다.</string>
+    <string name="recents_home_note">이 앱에서 검색하거나 전화 건 연락처는 홈 화면의 ‘최근 찾은 연락처’에 표시됩니다. (실제 통화기록과는 별개입니다)</string>
+    <string name="filter_all">전체</string>
+    <string name="filter_missed">부재중</string>
+    <string name="filter_incoming">수신</string>
+    <string name="filter_outgoing">발신</string>
+    <string name="call_type_incoming">수신</string>
+    <string name="call_type_outgoing">발신</string>
+    <string name="call_type_missed">부재중</string>
+    <string name="call_type_rejected">거절</string>
+    <string name="call_type_blocked">차단</string>
+
+    <!-- 설정 -->
+    <string name="settings_title">설정</string>
+    <string name="settings_integration_title">삼성 전화 연동 상태</string>
+    <string name="settings_default_dialer">기본 전화 앱: %1$s</string>
+    <string name="settings_default_dialer_unknown">확인할 수 없음</string>
+    <string name="settings_checking">확인 중…</string>
+    <string name="settings_role_ok">바로전화는 기본 전화 앱 역할을 사용하지 않습니다. ✓</string>
+    <string name="settings_role_warning">주의: 바로전화가 기본 전화 앱으로 지정되어 있습니다. 통화 스크리닝을 유지하려면 기본 앱 설정에서 삼성 전화로 되돌리세요.</string>
+    <string name="settings_integration_body">전화 발신·수신, 수신 화면, 통화 중 화면, 통화 스크리닝은 모두 기본 전화 앱(삼성 전화)이 처리합니다. 바로전화는 고른 번호를 기본 전화 앱에 전달만 하며 수신 전화나 통화 스크리닝에 관여하지 않습니다.</string>
+    <string name="settings_section_display">화면</string>
+    <string name="settings_theme">테마</string>
+    <string name="settings_theme_system">시스템</string>
+    <string name="settings_theme_light">라이트</string>
+    <string name="settings_theme_dark">다크</string>
+    <string name="settings_dynamic_color">배경화면 색상 사용</string>
+    <string name="settings_dynamic_color_desc">기기 배경화면에 맞춘 Material You 색상</string>
+    <string name="settings_start_tab">시작 화면</string>
+    <string name="settings_section_search">검색</string>
+    <string name="settings_results_near_bar">결과를 검색창 가까이 표시</string>
+    <string name="settings_results_near_bar_desc">가장 잘 맞는 결과를 하단 검색창 바로 위에 보여 줍니다 (한 손 조작)</string>
+    <string name="settings_clear_after_call">전화 건 뒤 검색 닫기</string>
+    <string name="settings_clear_after_call_desc">검색 결과에서 전화를 걸면 검색어를 지우고 이전 화면으로 돌아갑니다</string>
+    <string name="settings_save_history">검색 기록 저장</string>
+    <string name="settings_save_history_desc">검색해서 연 연락처와 이 앱에서 건 번호를 기기에만 저장합니다</string>
+    <string name="settings_clear_history">검색 기록 삭제</string>
+    <string name="settings_clear_history_desc">최근 찾은 연락처, 자주 거는 연락처 순위, 마지막 발신 번호를 지웁니다</string>
+    <string name="settings_clear_history_confirm">이 앱의 검색·발신 기록을 모두 지울까요? (삼성 전화의 통화기록은 지워지지 않습니다)</string>
+    <string name="settings_section_calling">전화 걸기</string>
+    <string name="settings_direct_call">원터치 발신 (실험적)</string>
+    <string name="settings_direct_call_desc">전화 걸기 권한을 허용하면 다이얼 화면을 거치지 않고 바로 발신합니다. 통화는 그대로 삼성 전화 통화 화면에서 진행됩니다. 긴급·특수번호와 * # 코드는 항상 다이얼 화면으로 엽니다. 실제 기기에서 확인한 뒤 사용하세요.</string>
+    <string name="settings_keypad_haptics">키패드 진동</string>
+    <string name="settings_section_favorites">즐겨찾기</string>
+    <string name="settings_show_system_favorites">연락처 앱 즐겨찾기 함께 표시</string>
+    <string name="settings_show_system_favorites_desc">휴대전화 연락처 앱에서 즐겨찾기한 연락처도 보여 줍니다 (읽기 전용)</string>
+    <string name="settings_section_permissions">권한</string>
+    <string name="settings_perm_contacts">연락처 읽기</string>
+    <string name="settings_perm_call_phone">전화 걸기 (원터치 발신용)</string>
+    <string name="settings_perm_call_log">통화기록 읽기</string>
+    <string name="settings_perm_granted">허용됨</string>
+    <string name="settings_perm_denied_tap">허용 안 됨 · 눌러서 허용</string>
+    <string name="settings_perm_call_phone_off">허용 안 됨 · 원터치 발신을 켤 때 요청합니다</string>
+    <string name="settings_perm_call_log_not_included">이 빌드에서는 사용하지 않음 (권한 선언 없음)</string>
+    <string name="settings_perm_call_log_required">아직 요청하지 않음 (실험 빌드)</string>
+    <string name="settings_perm_call_log_denied">거부됨 또는 제한됨</string>
+    <string name="settings_section_about">정보</string>
+    <string name="settings_privacy_title">개인정보</string>
+    <string name="settings_privacy_body">인터넷 권한이 없어 어떤 정보도 외부로 전송할 수 없습니다. 검색 기록·즐겨찾기·설정은 이 기기에만 저장되며 백업에서도 제외됩니다. 광고·분석 SDK를 사용하지 않습니다.</string>
+    <string name="settings_version">버전</string>
+    <string name="settings_open_default_apps">기본 앱 설정 열기</string>
+
+    <!-- 메시지 -->
+    <string name="message_history_cleared">검색 기록을 지웠습니다</string>
+    <string name="message_favorite_added">%1$s 님을 즐겨찾기에 추가했습니다</string>
+    <string name="message_favorite_removed">%1$s 님을 즐겨찾기에서 뺐습니다</string>
+    <string name="message_number_copied">번호를 복사했습니다</string>
+    <string name="message_paste_no_number">붙여넣을 전화번호가 없습니다</string>
+    <string name="message_enter_number">번호를 입력하세요</string>
+    <string name="message_contacts_denied">연락처 권한이 없어도 키패드로 전화를 걸 수 있습니다</string>
+    <string name="message_contacts_open_settings">설정 › 권한 › 연락처에서 허용해 주세요</string>
+    <string name="message_call_phone_denied">전화 걸기 권한이 없어 다이얼 화면을 거쳐 발신합니다</string>
+
+    <!-- 오류 -->
+    <string name="error_no_dialer">전화 앱을 열 수 없습니다</string>
+    <string name="error_no_sms_app">문자 앱을 열 수 없습니다</string>
+    <string name="error_no_contacts_app">연락처 앱을 열 수 없습니다</string>
+    <string name="error_generic">화면을 열 수 없습니다</string>
+</resources>

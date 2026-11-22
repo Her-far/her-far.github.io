@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  calllog 실험 빌드 전용 매니페스트.
+  READ_CALL_LOG 는 Android 10+ 에서 "hard-restricted" 권한이다.
+  설치 프로그램(installer)이 허용 목록에 올리지 않으면 앱이 요청해도 대화상자 없이 거부된다.
+  이 빌드는 실제 기기에서 권한 확보 가능 여부를 검증하기 위한 용도이며,
+  Google Play 배포용이 아니다. (Play 정책상 기본 전화 앱 등 특정 역할의 앱만 허용)
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+
+</manifest>
