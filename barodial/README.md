@@ -12,11 +12,11 @@
 |---|---|---|---|
 | ![홈](docs/screenshots/folded_01_home.png) | ![초성 검색](docs/screenshots/folded_02_search_choseong.png) | ![번호 검색](docs/screenshots/folded_03_search_number.png) | ![연락처](docs/screenshots/folded_04_contacts.png) |
 
-| 연락처 상세 | 다이얼 입력 중 | 즐겨찾기 | 최근기록(기본판: 안내 + 통화 녹음) |
+| 연락처 상세 | 다이얼 입력 중 | 즐겨찾기 | 최근기록(통화기록 권한 전: 안내 + 통화 녹음) |
 |---|---|---|---|
 | ![상세](docs/screenshots/folded_05_detail.png) | ![키패드](docs/screenshots/folded_06_keypad.png) | ![즐겨찾기](docs/screenshots/folded_07_favorites.png) | ![최근기록](docs/screenshots/folded_08_recents.png) |
 
-| 통화기록 + 녹음 ▶ (실험판) | 상세 통화내역의 녹음 ▶ | 연락처에 없는 번호 상세 | 통화 녹음 연결 진단 |
+| 통화기록 + 녹음 ▶ · 문자 | 상세 통화내역의 녹음 ▶ | 연락처에 없는 번호 상세 | 통화 녹음 연결 진단 |
 |---|---|---|---|
 | ![통화기록 녹음](docs/screenshots/folded_13_calllog_recordings.png) | ![상세 녹음](docs/screenshots/folded_14_detail_recordings.png) | ![번호 상세](docs/screenshots/folded_15_number_detail.png) | ![진단](docs/screenshots/folded_16_recording_diagnostics.png) |
 
@@ -34,14 +34,19 @@
 
 ### 바로 설치할 APK
 
-| 파일 | 용도 |
+| 파일 | 설명 |
 |---|---|
-| [`dist/barodial-1.2.0.apk`](dist/barodial-1.2.0.apk) | **권장.** 기본(standard) 빌드. 통화기록 권한 선언 없음. 약 3MB |
-| [`dist/barodial-1.2.0-calllog-experimental.apk`](dist/barodial-1.2.0-calllog-experimental.apk) | 실험 빌드. 통화기록(READ_CALL_LOG) 권한을 선언하고 기기에서 허용되는지 검증하는 용도 ([4장](#4-통화기록-제약과-대응)) |
+| [`dist/barodial-1.3.0.apk`](dist/barodial-1.3.0.apk) | 앱 전체 (약 3MB). 1.3.0부터 APK가 하나로 합쳐졌습니다 |
 
-> **이미 실험판을 adb로 설치해 통화기록을 쓰고 있다면** 업데이트도 반드시 `adb install -r dist\barodial-1.2.0-calllog-experimental.apk`로 하세요. 휴대폰에서 파일로 덮어쓰면 통화기록 권한이 다시 막힐 수 있습니다.
+설치 방법에 따라 **최근기록(통화기록)** 동작만 달라집니다.
 
-두 APK 모두 저장소에 포함된 같은 키(`keystore/debug.keystore`)로 서명되어 있어, 서로 바꾸거나 새 버전을 **덮어쓰기 설치**해도 즐겨찾기·설정이 유지됩니다.
+| 설치 방법 | 통화기록 |
+|---|---|
+| **PC에서 adb로 설치 (권장)** | 최근기록 탭에서 [통화기록 권한 허용] → 허용 창이 뜨고 통화기록·녹음 ▶·필터가 모두 동작합니다 (사용자 Galaxy Z Fold7에서 확인) |
+| 휴대폰에서 APK 파일로 설치 | Android가 통화기록 권한을 막을 수 있습니다. 막히면 이유를 안내하고 삼성 전화의 기록 화면으로 보내 줍니다. 나머지 기능(검색·다이얼·연락처·즐겨찾기·녹음 목록)은 그대로 동작합니다 |
+
+> **업데이트도 adb로 설치하세요** (`adb install -r …`). 휴대폰에서 파일로 덮어쓰면 통화기록 권한이 다시 막힐 수 있습니다.
+> 1.2.0 이하의 기본판·실험판 어느 쪽을 쓰고 있었든 1.3.0으로 덮어쓰기 설치됩니다 (같은 앱, 같은 서명 키 `keystore/debug.keystore`). 즐겨찾기·설정은 유지됩니다.
 
 ### 휴대폰에서 직접 설치
 
@@ -55,11 +60,19 @@
 
 ### PC에서 adb로 설치
 
+1. 휴대폰: `설정 › 휴대전화 정보 › 소프트웨어 정보 › 빌드번호`를 7번 눌러 개발자 모드를 켜고, `설정 › 개발자 옵션 › USB 디버깅`을 켭니다. 자동 차단은 잠시 끕니다.
+2. PC: [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)를 받아 `C:\platform-tools`에 풉니다 (Android Studio가 있으면 `%LOCALAPPDATA%\Android\Sdk\platform-tools`에 이미 있음).
+3. USB로 연결하고 폰의 "USB 디버깅 허용" 창에서 허용한 뒤:
+
 ```bat
-adb install -r dist\barodial-1.2.0.apk
+cd C:\platform-tools
+adb devices
+adb install -r "%USERPROFILE%\Downloads\barodial-1.3.0.apk"
 ```
 
-> 자동 차단이 켜져 있으면 USB 명령(adb)도 막히므로 잠시 꺼야 합니다.
+- `adb devices`에 `기기번호  device`가 보이면 정상입니다 (`unauthorized`면 폰의 허용 창 확인).
+- 파일을 못 찾으면 `adb install -r `까지 입력한 뒤 APK 파일을 명령 프롬프트 창으로 끌어다 놓으세요.
+- 끝나면 USB 디버깅을 끄고 자동 차단을 다시 켜세요.
 
 ### 설치 후 꼭 확인할 것
 
@@ -84,7 +97,7 @@ adb install -r dist\barodial-1.2.0.apk
 ### Android Studio에서
 
 1. `File › Open` → 이 저장소의 **`barodial`** 폴더를 엽니다.
-2. Gradle 동기화가 끝나면 상단의 빌드 변형(Build Variant)을 `standardDebug`로 두고 ▶ 실행합니다.
+2. Gradle 동기화가 끝나면 ▶ 실행합니다.
 
 ### 명령줄에서 (`gradlew.bat`)
 
@@ -100,10 +113,9 @@ gradlew.bat assembleDebug
 
 | 명령 | 결과물 |
 |---|---|
-| `gradlew.bat assembleDebug` | `app\build\outputs\apk\standard\debug\app-standard-debug.apk`<br>`app\build\outputs\apk\calllog\debug\app-calllog-debug.apk` |
-| `gradlew.bat assembleStandardRelease` | `app\build\outputs\apk\standard\release\app-standard-release.apk` (R8 축소, 약 3MB, 권장) |
-| `gradlew.bat assembleCalllogRelease` | `app\build\outputs\apk\calllog\release\app-calllog-release.apk` |
-| `gradlew.bat testStandardDebugUnitTest` | 단위·UI 테스트 (보고서: `app\build\reports\tests\`) |
+| `gradlew.bat assembleDebug` | `app\build\outputs\apk\debug\app-debug.apk` |
+| `gradlew.bat assembleRelease` | `app\build\outputs\apk\release\app-release.apk` (R8 축소, 약 3MB, 권장) |
+| `gradlew.bat testDebugUnitTest` | 단위·UI 테스트 (보고서: `app\build\reports\tests\`) |
 
 - 처음 빌드하면 Gradle 9.8.2가 자동으로 내려받아집니다.
 - `local.properties`(SDK 경로)는 Android Studio가 자동으로 만듭니다.
@@ -169,33 +181,25 @@ gradlew.bat assembleDebug
 | 우리 앱을 기본 전화 앱(ROLE_DIALER)으로 | ❌ 삼성 전화가 기본 앱에서 빠지면 삼성 통화 스크리닝·통화 화면을 잃습니다. 최우선 요구와 정면 충돌 |
 | 기본 어시스턴트(ROLE_ASSISTANT)로 등록 | ❌ VoiceInteractionService 등을 구현해 실제 어시스턴트가 되어야 하고 Bixby/Gemini를 대체합니다. 이름만 등록하는 것은 정책 우회이므로 하지 않음 |
 | 접근성 서비스·화면 오버레이로 삼성 전화 화면 읽기 | ❌ 금지 (요구사항 및 정책 위반) |
-| 일반 앱으로 READ_CALL_LOG 요청 | △ 설치 방식에 따라 다름. 실기기 검증 전에는 프로덕션에 넣지 않음 → **`calllog` 실험 빌드로 분리** |
+| 일반 앱으로 READ_CALL_LOG 요청 | ✅ 설치 방식에 따라 다름. 1.2.0까지는 실험 빌드로 분리해 검증했고, **사용자 기기에서 adb 설치 시 허용됨을 확인**한 뒤 1.3.0에서 본체에 합침 |
 | 삼성 전화의 기록 화면 열기 | ✅ 구현. 기록 화면 → 기본 전화 앱 열기 → 다이얼 화면 순으로 시도 |
 
-### 현재 구현
+### 현재 구현 (1.3.0)
 
-- **standard 빌드(기본·권장)**
-  - 매니페스트에 READ_CALL_LOG가 없습니다.
-  - 최근기록 탭은 이유를 설명하고 **[전화에서 최근기록 보기]** 버튼으로 삼성 전화를 엽니다.
-  - 가짜·흉내 기록은 어떤 경우에도 표시하지 않습니다.
-- **calllog 실험 빌드**
-  - READ_CALL_LOG를 선언하고, 허용된 경우에만 아래를 보여 줍니다:
-    - 전체/부재중/수신/발신 필터, 날짜별 묶음
-    - 사람별 통화 횟수·통화 시간
-    - 검색창에서 통화기록 번호 검색
-  - 거부되면 안내만 표시합니다.
-- 앱의 나머지 부분은 `CallHistoryRepository` 인터페이스만 사용하므로, 권한 상황이 바뀌면 구현만 교체하면 됩니다.
+- 매니페스트에 READ_CALL_LOG를 선언하지만, **최근기록 탭에서 [통화기록 권한 허용]을 누를 때만** 요청합니다 (읽기 전용).
+- 상태별 동작
+  - **허용됨**: 전체/부재중/수신/발신/녹음 필터, 날짜별 묶음, 각 줄의 ▶ 녹음·💬 문자·📞 전화, 사람별 통화 횟수·통화 시간, 검색창에서 통화기록 번호 검색
+  - **아직 요청 전**: 허용하면 볼 수 있는 내용을 설명하고 [통화기록 권한 허용] / [전화에서 최근기록 보기] 버튼
+  - **거부·차단됨**: hard-restricted 권한이라 파일로 설치하면 막힐 수 있다는 이유, adb 설치·'제한된 설정 허용' 방법을 안내하고 삼성 전화의 기록 화면으로 보내 줍니다
+- 어떤 경우에도 가짜·흉내 기록은 표시하지 않습니다.
+- 삼성 전화의 기본 앱 지위와 통화 스크리닝에는 영향이 없습니다 (읽기 권한만 사용).
+- 일부 제조사 Provider가 개수 제한을 정렬보다 먼저 적용하는 문제를 피하려고, 통화기록은 개수 제한 없이 읽은 뒤 앱에서 최신순으로 정렬해 최근 5,000건까지 씁니다.
+- 앱의 나머지 부분은 `CallHistoryRepository` 인터페이스만 사용합니다 (테스트에서는 가짜 구현으로 교체).
 
-### 실험 빌드 검증 방법 (사용자 기기에서)
+### 설치 방식별 권한 (참고)
 
-1. `adb install -r dist\barodial-1.2.0-calllog-experimental.apk`
-   - AOSP의 `pm install`은 `--restrict-permissions` 옵션을 주지 않으면 제한 권한을 허용 목록에 올리는 것으로 알려져 있습니다.
-   - **삼성 기기에서의 실제 동작은 검증되지 않았습니다.**
-2. 앱 › 최근기록 탭 › [통화기록 권한 요청]을 누릅니다.
-   - 허용 창이 뜨고 허용되면 성공입니다.
-   - 창 없이 즉시 거부되면 이 설치 방식으로는 쓸 수 없다는 뜻입니다.
-3. 파일로 설치한 경우에는 앱 정보의 ⋮ 메뉴에 "제한된 설정 허용"이 보일 수 있습니다. 기기·OS 버전에 따라 다릅니다.
-4. 어떤 경우든 삼성 전화의 기본 앱 지위와 통화 스크리닝에는 영향이 없습니다 (읽기 권한만 사용).
+- AOSP의 `pm install`(adb)은 `--restrict-permissions` 옵션을 주지 않으면 제한 권한을 허용 목록에 올리는 것으로 알려져 있고, 사용자 Galaxy Z Fold7에서 실제로 허용되는 것을 확인했습니다.
+- 휴대폰에서 파일로 설치한 경우에는 앱 정보의 ⋮ 메뉴에 "제한된 설정 허용"이 보일 수 있습니다. 기기·OS 버전에 따라 다릅니다.
 
 ---
 
@@ -236,7 +240,7 @@ gradlew.bat assembleDebug
 - 회사명·직함, 별명, 모든 전화번호
   - 하이픈 무시, +82 국제형식 저장 번호도 010으로 검색
   - 앞자리·끝자리·중간 일치
-- 이 앱의 최근 검색·발신 번호, (calllog 빌드) 통화기록 번호
+- 이 앱의 최근 검색·발신 번호, 통화기록 번호 (통화기록 권한이 있을 때)
 - 점수 순서: 정확 일치 > 앞부분 일치 > 단어 시작 > 중간 일치, 이름 > 별명 > 회사
 - 동점이면 즐겨찾기·발신 횟수 순, 그다음 가나다순
 - 일치 구간을 굵게 강조합니다.
@@ -289,7 +293,7 @@ gradlew.bat assembleDebug
   - 여러 후보가 있으면 시각 차이가 가장 작은 짝부터 연결합니다 (이름이 같으면 우선).
 - 표시 위치
   - 최근기록(통화기록 있음): 녹음된 통화에 ▶ 버튼, [녹음] 필터 (다른 탭에 갔다 오면 '전체'로 돌아감)
-  - 최근기록(기본판): 안내 아래에 통화 녹음 파일 목록
+  - 최근기록(통화기록 권한 전·차단 시): 안내 아래에 통화 녹음 파일 목록
   - 연락처 상세·번호 상세: **통화내역 각 줄에 ▶**, 통화와 연결되지 않은 녹음은 '그 밖의 통화 녹음'
 - **설정 › 통화 녹음 연결 진단**: 찾은 녹음 파일 수, 읽은 통화기록 수, 최근 녹음 파일별 폴더·시각(파일 이름/수정 시각 중 어디서 읽었는지)·연결된 통화를 보여 줍니다. [녹음 폴더 다시 검색]으로 Android 미디어 목록에 녹음 폴더를 다시 등록하게 할 수 있습니다.
 - 재생 창: 재생/일시정지, 위치 이동 막대, 10초 앞뒤, [다른 앱으로 열기]. 앱이 화면에서 사라지면 일시정지합니다.
@@ -330,11 +334,10 @@ gradlew.bat assembleDebug
 
 | 항목 | 결과 |
 |---|---|
-| `assembleDebug` (standard, calllog) | ✅ 성공 |
+| `assembleDebug` | ✅ 성공 |
 | `assembleRelease` (R8 축소) | ✅ 성공 (각 약 3MB) |
-| Android Lint (standard, calllog) | ✅ 오류 0 (경고는 "더 새 버전 있음"류) |
-| 단위·UI 테스트 standard | ✅ 113개 통과 |
-| 단위·UI 테스트 calllog | ✅ 116개 통과 (통화기록 Provider 읽기 테스트 포함) |
+| Android Lint | ✅ 오류 0 (경고는 "더 새 버전 있음"류) |
+| 단위·UI 테스트 (`testDebugUnitTest`) | ✅ 118개 통과 (통화기록 Provider 읽기 테스트 포함) |
 
 테스트 범위:
 
@@ -358,7 +361,8 @@ gradlew.bat assembleDebug
   - **접기↔펼치기 상태 유지**
   - 하단 메뉴 순서와 **좌우 스와이프** (초성 막대가 가로 스와이프를 막지 않음, 세로 끌기는 그대로 동작)
   - **복사한 번호 붙여넣기**, ⋮ 메뉴 붙여넣기·대기 추가
-  - 녹음된 통화 ▶ → 재생 창, 기본판의 녹음 목록, 오디오 권한 요청
+  - 녹음된 통화 ▶ → 재생 창, 통화기록 권한 전의 녹음 목록, 오디오 권한 요청
+  - 통화기록 권한 요청 → 차단 시 안내와 삼성 전화로 이동, 각 줄의 문자 버튼
 - **통화 녹음**: 파일 이름 해석 (한글·영문 형식, 번호가 날짜로 오인되지 않음), 통화·연락처 연결 규칙, 가짜 MediaStore로 조회·권한 확인
 
 1.2.0 수정: 일부 제조사 통화기록 Provider는 개수 제한(limit) 매개변수를 정렬보다 먼저 적용해 **오래된 기록만** 돌려줄 수 있습니다. 그러면 최신 통화와 그 녹음이 목록에서 빠집니다. 개수 제한 없이 읽은 뒤 앱에서 최신순으로 정렬하도록 바꾸고, 이를 확인하는 테스트를 추가했습니다.
@@ -380,7 +384,7 @@ gradlew.bat assembleDebug
 
 | 기능 | 상태 | 이유 |
 |---|---|---|
-| 기본 빌드의 통화기록 표시 | 제외 | READ_CALL_LOG는 hard-restricted 권한이며, 삼성 전화를 기본 앱으로 유지하는 한 안정적으로 얻을 근거가 없습니다. 실험 빌드로 분리했습니다 |
+| 파일로 설치했을 때의 통화기록 | 제한 | READ_CALL_LOG는 hard-restricted 권한이라 휴대폰에서 파일로 설치하면 Android가 막을 수 있습니다. adb로 설치해야 합니다 (막히면 삼성 전화 기록 화면으로 안내) |
 | 삼성 전화의 "최근기록 탭"을 정확히 여는 것 | 부분 | 다른 앱의 특정 탭을 여는 공식 API가 없습니다. 통화기록 인텐트 → 전화 앱 열기 → 다이얼 화면 순으로 대체합니다 |
 | 원터치 발신 정식 지원 | 실험 기능 | 실제 삼성 통화 화면 동작을 아직 검증하지 못했습니다 |
 | 에이닷 전화 화면 분석 | 미수행 | 빌드 환경에서 공식 안내·공개 스크린샷 페이지에 접근하지 못했습니다. 그래서 "하단 큰 검색창"이라는 사용자 설명과 일반적인 한 손 조작 원칙으로 독자적으로 설계했습니다. 에이닷의 코드·아이콘·상표는 쓰지 않았고, 아이콘은 Material Icons(Apache 2.0)입니다 |
@@ -391,8 +395,6 @@ gradlew.bat assembleDebug
 
 1. 실기기 체크리스트 결과를 반영합니다.
    - 원터치 발신을 정식 기능으로 할지 결정
-   - 통화기록 실험 빌드를 standard에 합치기 (사용자 기기에서 adb 설치로 권한 허용을 확인함)
-   - 최근기록 목록 각 줄에 문자 버튼 추가
    - 실제 녹음 파일 이름 형식에 맞춰 통화 연결 규칙 보정
 2. 영문 자판 오타 변환 검색 (`rlacjftn` → 김철수)
 3. 키패드 초성 검색 (천지인 방식 숫자 → 자음)
@@ -412,13 +414,11 @@ barodial/
 │  ├─ data/   contacts/ (ContactsRepository, Contacts Provider 읽기)
 │  │          search/ (ContactSearchEngine)
 │  │          favorites/ history/ settings/ (DataStore)
-│  │          calllog/ (CallHistoryRepository 인터페이스, 묶음·통계)
+│  │          calllog/ (CallHistoryRepository, CallLog Provider 읽기, 묶음·통계)
 │  │          recordings/ (통화 녹음: MediaStore 조회, 파일 이름 해석, 통화 연결)
 │  ├─ dial/   DialerLauncher (발신·문자·연락처 앱 위임, 기본 전화 앱 확인)
 │  └─ ui/     MainViewModel, BaroDialApp (접힘/펼침 레이아웃)
 │             components/ (하단 검색창 등), home/ contacts/ dialer/ favorites/ recents/ search/ settings/ theme/ icons/
-├─ app/src/standard/…  통화기록 미사용 구현
-├─ app/src/calllog/…   READ_CALL_LOG 선언 + CallLog Provider 구현 (실험)
 ├─ app/src/test/…      단위·Robolectric·Compose UI·스크린샷 테스트
 ├─ dist/               설치용 APK
 ├─ docs/screenshots/   자동 생성 스크린샷

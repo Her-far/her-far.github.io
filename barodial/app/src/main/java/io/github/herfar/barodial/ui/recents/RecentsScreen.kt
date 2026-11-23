@@ -63,6 +63,7 @@ class RecentsActions(
     val openAppSettings: () -> Unit,
     val setFilter: (CallFilter) -> Unit,
     val callNumber: (String) -> Unit,
+    val sendSms: (String) -> Unit,
     val openContact: (Contact) -> Unit,
     val openNumber: (String) -> Unit,
     val playRecording: (CallRecording, String) -> Unit,
@@ -93,35 +94,31 @@ fun RecentsScreen(
     modifier: Modifier = Modifier,
 ) {
     val phoneApp = dialerLabel ?: stringResource(R.string.default_phone_app)
+    val openSystemLabel = stringResource(
+        if (canOpenCallLogScreen) R.string.recents_open_system else R.string.recents_open_dialer,
+        phoneApp,
+    )
     when (availability) {
         CallHistoryAvailability.Available -> CallLogList(state, filter, recordingsAvailability, actions, modifier)
         else -> LazyColumn(modifier.fillMaxSize().testTag("recentsExplanation"), contentPadding = PaddingValues(bottom = 16.dp)) {
             item("explanation") {
                 when (availability) {
-                    CallHistoryAvailability.NotIncludedInBuild -> Explanation(
-                        title = stringResource(R.string.recents_unavailable_title, phoneApp),
-                        body = stringResource(R.string.recents_unavailable_body),
-                        icon = AppIcons.Lock,
-                        primaryLabel = stringResource(
-                            if (canOpenCallLogScreen) R.string.recents_open_system else R.string.recents_open_dialer,
-                            phoneApp,
-                        ),
-                        onPrimary = actions.openSystemCallLog,
-                    )
+                    // 아직 요청 전: 허용하면 삼성 전화의 최근기록을 이 앱에서 그대로 본다
                     is CallHistoryAvailability.PermissionRequired -> Explanation(
                         title = stringResource(R.string.recents_permission_title),
                         body = stringResource(R.string.recents_permission_body),
                         icon = AppIcons.History,
                         primaryLabel = stringResource(R.string.recents_permission_allow),
                         onPrimary = actions.requestPermission,
-                        secondaryLabel = stringResource(R.string.recents_open_system, phoneApp),
+                        secondaryLabel = openSystemLabel,
                         onSecondary = actions.openSystemCallLog,
                     )
+                    // 거부·차단됨 (파일로 설치한 경우 Android 가 막을 수 있음): 이유 안내 + 삼성 전화로
                     else -> Explanation(
                         title = stringResource(R.string.recents_denied_title),
-                        body = stringResource(R.string.recents_denied_body),
+                        body = stringResource(R.string.recents_denied_body, phoneApp),
                         icon = AppIcons.Lock,
-                        primaryLabel = stringResource(R.string.recents_open_system, phoneApp),
+                        primaryLabel = openSystemLabel,
                         onPrimary = actions.openSystemCallLog,
                         secondaryLabel = stringResource(R.string.action_open_app_settings),
                         onSecondary = actions.openAppSettings,
@@ -147,7 +144,7 @@ private fun Explanation(
         Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onPrimary, modifier = Modifier.fillMaxWidth().testTag("recentsPrimary")) { Text(primaryLabel) }
             if (secondaryLabel != null) {
-                OutlinedButton(onClick = onSecondary, modifier = Modifier.fillMaxWidth()) { Text(secondaryLabel) }
+                OutlinedButton(onClick = onSecondary, modifier = Modifier.fillMaxWidth().testTag("recentsSecondary")) { Text(secondaryLabel) }
             }
         }
     }
@@ -296,12 +293,27 @@ private fun CallGroupRow(group: CallGroup, contact: Contact?, recording: CallRec
             }
         },
         trailing = {
+            // 좁은 화면에서도 이름이 덜 잘리도록 ▶·문자 버튼은 40dp, 통화 버튼은 48dp
             if (recording != null) {
-                IconButton(onClick = { actions.playRecording(recording, title) }, modifier = Modifier.testTag("playCall_${call.id}")) {
+                IconButton(
+                    onClick = { actions.playRecording(recording, title) },
+                    modifier = Modifier.size(40.dp).testTag("playCall_${call.id}"),
+                ) {
                     Icon(AppIcons.PlayArrow, contentDescription = stringResource(R.string.recording_play_target, title), tint = MaterialTheme.colorScheme.tertiary)
                 }
             }
             if (call.number.isNotEmpty()) {
+                IconButton(
+                    onClick = { actions.sendSms(call.number) },
+                    modifier = Modifier.size(40.dp).testTag("smsCall_${call.id}"),
+                ) {
+                    Icon(
+                        AppIcons.Message,
+                        contentDescription = stringResource(R.string.action_sms_target, title),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
                 CallIconButton(onClick = { actions.callNumber(call.number) }, contentDescription = stringResource(R.string.action_call_target, title))
             }
         },

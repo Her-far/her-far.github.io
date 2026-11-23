@@ -117,15 +117,13 @@
     <string name="favorites_add_to_app">%1$s 앱 즐겨찾기에 추가</string>
 
     <!-- 최근기록 -->
-    <string name="recents_unavailable_title">통화기록은 %1$s에서 확인하세요</string>
-    <string name="recents_unavailable_body">바로전화는 삼성 전화를 기본 전화 앱으로 그대로 두기 위해 ‘기본 전화 앱’ 역할을 요청하지 않습니다.\n\nAndroid는 통화기록 읽기(READ_CALL_LOG)를 강하게 제한된 권한(hard-restricted)으로 분류해, 기본 전화 앱 같은 특정 역할의 앱이나 설치 과정에서 허용 목록에 오른 앱만 사용할 수 있게 합니다. 그래서 이 기본 버전은 통화기록을 읽지 않으며, 기록을 흉내 낸 목록도 만들지 않습니다.\n\n최근 통화와 부재중 전화는 아래 버튼으로 바로 확인할 수 있습니다.</string>
     <string name="recents_open_system">%1$s에서 최근기록 보기</string>
     <string name="recents_open_dialer">%1$s 열기</string>
-    <string name="recents_permission_title">통화기록 권한이 필요합니다 (실험 빌드)</string>
-    <string name="recents_permission_body">이 실험용 빌드는 통화기록을 이 앱 안에서 보여 주기 위해 통화기록 읽기 권한을 요청합니다. 기록은 기기 밖으로 전송되지 않습니다.\n\nAndroid 정책상 설치 방식에 따라 권한 창이 뜨지 않고 곧바로 거부될 수 있습니다.</string>
-    <string name="recents_permission_allow">통화기록 권한 요청</string>
-    <string name="recents_denied_title">통화기록 권한이 허용되지 않았습니다</string>
-    <string name="recents_denied_body">통화기록 읽기는 Android의 강하게 제한된 권한이라, 설치 프로그램이 허용 목록에 올리지 않은 앱은 권한 창 없이 거부됩니다. 앱 설정에서 ‘권한’ 또는 ‘제한된 설정 허용’ 메뉴가 보이면 허용할 수 있습니다. 그렇지 않으면 삼성 전화에서 기록을 확인하세요. (자세한 방법은 README 참고)</string>
+    <string name="recents_permission_title">최근기록을 이 앱에서 보려면</string>
+    <string name="recents_permission_body">통화기록 읽기 권한을 허용하면 삼성 전화의 최근기록을 이 앱에서 그대로 보고, 통화 녹음도 함께 확인할 수 있습니다. 읽기만 하므로 삼성 전화의 통화·통화 스크리닝에는 영향이 없고, 기록은 기기 밖으로 전송되지 않습니다.\n\n이 권한은 Android에서 강하게 제한된 권한이라 설치 방식에 따라 허용 창 없이 바로 거부될 수 있습니다.</string>
+    <string name="recents_permission_allow">통화기록 권한 허용</string>
+    <string name="recents_denied_title">통화기록 권한이 막혀 있습니다</string>
+    <string name="recents_denied_body">통화기록 읽기(READ_CALL_LOG)는 Android의 강하게 제한된 권한입니다. 휴대폰에서 APK 파일로 설치하면 Android가 허용 창 없이 막을 수 있습니다.\n\n• PC에서 adb로 설치하면 허용할 수 있습니다 (README의 설치 방법 참고).\n• 앱 정보의 ⋮ 메뉴에 ‘제한된 설정 허용’이 보이면 그 뒤에 권한을 허용할 수 있습니다.\n• 그 전까지는 %1$s에서 최근기록을 확인하세요.</string>
     <string name="recents_empty">표시할 통화기록이 없습니다.</string>
     <string name="filter_all">전체</string>
     <string name="filter_missed">부재중</string>
@@ -216,8 +214,7 @@
     <string name="settings_perm_granted">허용됨</string>
     <string name="settings_perm_denied_tap">허용 안 됨 · 눌러서 허용</string>
     <string name="settings_perm_call_phone_off">허용 안 됨 · 원터치 발신을 켤 때 요청합니다</string>
-    <string name="settings_perm_call_log_not_included">이 빌드에서는 사용하지 않음 (권한 선언 없음)</string>
-    <string name="settings_perm_call_log_required">아직 요청하지 않음 (실험 빌드)</string>
+    <string name="settings_perm_call_log_required">아직 요청하지 않음 · 최근기록 탭에서 허용</string>
     <string name="settings_perm_call_log_denied">거부됨 또는 제한됨</string>
     <string name="settings_perm_recordings">통화 녹음 (오디오 파일 읽기)</string>
     <string name="settings_perm_recordings_found">허용됨 · 녹음 파일 %1$d개</string>

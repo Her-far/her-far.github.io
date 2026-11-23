@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * CallLog Provider 를 읽는다 (calllog 실험 빌드 전용).
+ * CallLog Provider 를 읽는다.
  *
  * 이 구현은 권한이 실제로 허용된 경우에만 기록을 읽는다.
  * 권한을 우회하거나 다른 앱의 화면을 읽는 방식은 사용하지 않는다.

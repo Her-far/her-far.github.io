@@ -307,6 +307,7 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
             openAppSettings = vm::openAppSettings,
             setFilter = vm::setCallFilter,
             callNumber = vm::callNumber,
+            sendSms = vm::sendSms,
             openContact = vm::openContact,
             openNumber = vm::openNumber,
             playRecording = vm::playRecording,

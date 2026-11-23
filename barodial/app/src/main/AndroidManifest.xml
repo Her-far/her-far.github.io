@@ -8,12 +8,15 @@
       - CALL_PHONE    : 설정의 "원터치 발신(실험적)"을 켤 때만 요청. 기본값은 꺼짐 → ACTION_DIAL 사용
       - READ_MEDIA_AUDIO (Android 13+) / READ_EXTERNAL_STORAGE (12 이하)
                       : 삼성 전화가 저장한 통화 녹음 파일을 보여 주고 재생할 때만 요청 (Recordings/Call 폴더만 조회)
+      - READ_CALL_LOG : 최근기록 탭에서 사용자가 [허용]을 누를 때만 요청 (읽기 전용).
+                        Android 10+ 의 hard-restricted 권한이라 설치 방식에 따라 허용될 수도, 막힐 수도 있다.
+                        사용자 기기(Galaxy Z Fold7)에서 adb 설치 시 허용됨을 확인했다. 막히면 삼성 전화 기록 화면으로 안내한다.
       - INTERNET 권한은 선언하지 않는다. (외부 서버 통신 불가 = 개인정보 외부 전송 불가)
-      - READ_CALL_LOG 는 기본(standard) 빌드에서 선언하지 않는다. (calllog 실험 빌드에만 존재)
       - 기본 전화 앱 역할(ROLE_DIALER)을 요청하지 않으며, InCallService/CallScreeningService 를 구현하지 않는다.
     -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"

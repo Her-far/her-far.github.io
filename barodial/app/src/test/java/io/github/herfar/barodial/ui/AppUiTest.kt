@@ -187,11 +187,46 @@ class AppUiTest {
         rule.onNodeWithTag("tab_RECENTS").performClick()
         rule.onNodeWithTag("recentsExplanation").assertIsDisplayed()
         rule.onAllNodesWithTag("callLogList").assertCountEquals(0)
-        rule.onNodeWithTag("recentsPrimary").performClick()
+        // 두 번째 버튼: 삼성 전화(기본 전화 앱)의 최근기록 화면
+        rule.onNodeWithTag("recentsSecondary").performClick()
         rule.waitForIdle()
         val started = startedActivity()
         assertEquals(Intent.ACTION_VIEW, started?.action)
         assertEquals(CallLog.Calls.CONTENT_TYPE, started?.type)
+    }
+
+    @Test
+    fun callLogPermissionIsRequestedAndDeniedStateExplains() {
+        val h = Harness(app)
+        show(h)
+        rule.onNodeWithTag("tab_RECENTS").performClick()
+        settlePager()
+        rule.onNodeWithTag("recentsPrimary").performClick()
+        rule.waitForIdle()
+        val requested = shadowOf(rule.activity).lastRequestedPermission
+        assertTrue(Manifest.permission.READ_CALL_LOG in requested!!.requestedPermissions)
+        // 파일로 설치해 Android 가 막은 경우: 이유 안내 + 삼성 전화로 보내는 버튼
+        rule.runOnUiThread { h.callHistory.mutableAvailability.value = CallHistoryAvailability.Denied(Manifest.permission.READ_CALL_LOG) }
+        rule.waitForIdle()
+        rule.onNode(hasText("통화기록 권한이 막혀 있습니다")).assertExists()
+        rule.onNodeWithTag("recentsPrimary").performClick()
+        rule.waitForIdle()
+        assertEquals(CallLog.Calls.CONTENT_TYPE, startedActivity()?.type)
+    }
+
+    @Test
+    fun eachCallRowHasSmsButton() {
+        val now = System.currentTimeMillis()
+        val calls = listOf(CallLogEntry(7, "02-999-8888", "029998888", null, CallType.INCOMING, now - 60_000, 30))
+        show(Harness(app, callHistory = FakeCallHistoryRepository(CallHistoryAvailability.Available, calls)))
+        rule.onNodeWithTag("tab_RECENTS").performClick()
+        settlePager()
+        waitForTag("smsCall_7")
+        rule.onNodeWithTag("smsCall_7").performClick()
+        rule.waitForIdle()
+        val started = startedActivity()
+        assertEquals(Intent.ACTION_SENDTO, started?.action)
+        assertEquals("smsto:02-999-8888", started?.data.toString())
     }
 
     @Test

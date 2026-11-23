@@ -2,7 +2,7 @@ package io.github.herfar.barodial
 
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStore
-import io.github.herfar.barodial.data.calllog.CallHistoryModule
+import io.github.herfar.barodial.data.calllog.AndroidCallHistoryRepository
 import io.github.herfar.barodial.data.calllog.CallHistoryRepository
 import io.github.herfar.barodial.data.contacts.AndroidContactsRepository
 import io.github.herfar.barodial.data.contacts.ContactsRepository
@@ -48,7 +48,7 @@ class DefaultAppContainer(context: Context) : AppContainer {
         DataStoreSearchHistoryRepository(appContext.appDataStore)
     }
     override val settingsRepository: SettingsRepository by lazy { DataStoreSettingsRepository(appContext.appDataStore) }
-    override val callHistoryRepository: CallHistoryRepository by lazy { CallHistoryModule.create(appContext, appScope) }
+    override val callHistoryRepository: CallHistoryRepository by lazy { AndroidCallHistoryRepository(appContext, appScope) }
     override val callRecordingsRepository: CallRecordingsRepository by lazy {
         MediaStoreCallRecordingsRepository(appContext, appScope)
     }

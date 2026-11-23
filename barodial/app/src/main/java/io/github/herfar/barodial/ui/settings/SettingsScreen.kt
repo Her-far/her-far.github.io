@@ -220,7 +220,6 @@ fun SettingsScreen(
                         title = stringResource(R.string.settings_perm_call_log),
                         subtitle = stringResource(
                             when (callHistory) {
-                                CallHistoryAvailability.NotIncludedInBuild -> R.string.settings_perm_call_log_not_included
                                 CallHistoryAvailability.Available -> R.string.settings_perm_granted
                                 is CallHistoryAvailability.Denied -> R.string.settings_perm_call_log_denied
                                 is CallHistoryAvailability.PermissionRequired -> R.string.settings_perm_call_log_required
@@ -262,7 +261,7 @@ fun SettingsScreen(
                 item("version") {
                     InfoRow(
                         stringResource(R.string.settings_version),
-                        "${BuildConfig.VERSION_NAME} (${BuildConfig.FLAVOR}, ${BuildConfig.BUILD_TYPE})",
+                        "${BuildConfig.VERSION_NAME} (${BuildConfig.BUILD_TYPE})",
                     )
                 }
                 item("open") {

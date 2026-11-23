@@ -13,8 +13,8 @@ android {
         minSdk = 29
         // Galaxy Z Fold7 출시 OS(Android 16, API 36) 기준
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -39,21 +39,6 @@ android {
             )
             // 개인용 직접 설치 APK 이므로 디버그 키로 서명한다 (스토어 배포 금지).
             signingConfig = signingConfigs.getByName("debug")
-        }
-    }
-
-    // 통화기록 기능은 권한 정책 때문에 별도 빌드 변형으로 분리한다.
-    //  - standard : 기본(프로덕션) 빌드. READ_CALL_LOG 를 선언하지 않는다.
-    //  - calllog  : 실험용 빌드. READ_CALL_LOG 를 선언하고 실제 기기에서 허용 여부를 검증한다.
-    flavorDimensions += "callhistory"
-    productFlavors {
-        create("standard") {
-            dimension = "callhistory"
-            isDefault = true
-        }
-        create("calllog") {
-            dimension = "callhistory"
-            versionNameSuffix = "-calllog"
         }
     }
 

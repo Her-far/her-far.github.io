@@ -114,9 +114,9 @@ class InMemorySettingsRepository(initial: AppSettings = AppSettings()) : Setting
 }
 
 class FakeCallHistoryRepository(
-    availability: CallHistoryAvailability = CallHistoryAvailability.NotIncludedInBuild,
+    availability: CallHistoryAvailability = CallHistoryAvailability.PermissionRequired("android.permission.READ_CALL_LOG"),
     entries: List<CallLogEntry> = emptyList(),
-    override val requiredPermission: String? = null,
+    override val requiredPermission: String? = "android.permission.READ_CALL_LOG",
 ) : CallHistoryRepository {
     val mutableAvailability = MutableStateFlow(availability)
     val mutableEntries = MutableStateFlow(entries)
