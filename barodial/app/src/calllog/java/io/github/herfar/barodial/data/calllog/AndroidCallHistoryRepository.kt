@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 class AndroidCallHistoryRepository(
     private val context: Context,
     private val scope: CoroutineScope,
-    private val limit: Int = 500,
+    private val limit: Int = 5_000,
 ) : CallHistoryRepository {
 
     override val requiredPermission: String = Manifest.permission.READ_CALL_LOG
@@ -104,9 +104,9 @@ class AndroidCallHistoryRepository(
     }
 
     private fun query(): List<CallLogEntry> {
-        val uri = CallLog.Calls.CONTENT_URI.buildUpon()
-            .appendQueryParameter(CallLog.Calls.LIMIT_PARAM_KEY, limit.toString())
-            .build()
+        // 개수 제한(limit) 매개변수는 쓰지 않는다. 일부 제조사 Provider 는 제한을 정렬보다 먼저 적용해
+        // 오래된 기록만 돌려줄 수 있으므로, 전부 읽은 뒤 앱에서 최신순으로 정렬하고 자른다.
+        val uri = CallLog.Calls.CONTENT_URI
         val projection = arrayOf(
             CallLog.Calls._ID,
             CallLog.Calls.NUMBER,
@@ -136,7 +136,7 @@ class AndroidCallHistoryRepository(
                 )
             }
         }
-        return result
+        return result.sortedByDescending { it.timestampMillis }.take(limit)
     }
 
     private fun mapType(type: Int): CallType = when (type) {

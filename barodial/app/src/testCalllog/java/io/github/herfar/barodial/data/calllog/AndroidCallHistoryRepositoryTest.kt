@@ -83,6 +83,16 @@ class AndroidCallHistoryRepositoryTest {
     }
 
     @Test
+    fun newestCallsComeFirstEvenIfProviderReturnsOldestFirst() {
+        FakeCallLogProvider.rows.clear()
+        FakeCallLogProvider.rows += (1..30).map { i -> row(i.toLong(), "010-0000-%04d".format(i), null, CallLog.Calls.INCOMING_TYPE, i * 1_000L, 10) }
+        shadowOf(app).grantPermissions(Manifest.permission.READ_CALL_LOG)
+        val repo = AndroidCallHistoryRepository(app, scope, limit = 10)
+        await { repo.entries.value.size == 10 }
+        assertEquals((30 downTo 21).map { it.toLong() }, repo.entries.value.map { it.id })
+    }
+
+    @Test
     fun withoutPermissionNothingIsReadAndNoFakeEntries() {
         shadowOf(app).denyPermissions(Manifest.permission.READ_CALL_LOG)
         val repo = AndroidCallHistoryRepository(app, scope)
@@ -110,6 +120,7 @@ class AndroidCallHistoryRepositoryTest {
         assertEquals("025551234", e[1].nationalDigits)
         assertEquals(125L, e[1].durationSeconds)
         assertEquals(CallType.BLOCKED, e[2].type)
-        assertEquals("100", FakeCallLogProvider.lastUri?.getQueryParameter(CallLog.Calls.LIMIT_PARAM_KEY))
+        // 개수 제한 매개변수를 보내지 않는다 (제조사 Provider 가 오래된 기록부터 자르는 문제 방지)
+        assertEquals(null, FakeCallLogProvider.lastUri?.getQueryParameter(CallLog.Calls.LIMIT_PARAM_KEY))
     }
 }

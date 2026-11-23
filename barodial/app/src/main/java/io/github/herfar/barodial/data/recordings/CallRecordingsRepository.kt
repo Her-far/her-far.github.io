@@ -5,7 +5,9 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
+import android.media.MediaScannerConnection
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 sealed interface RecordingsAvailability {
     /** 오디오 파일 읽기 권한을 아직 요청하지 않음 */
@@ -44,6 +47,9 @@ interface CallRecordingsRepository {
 
     fun refresh()
     fun onPermissionResult(granted: Boolean)
+
+    /** 녹음 폴더를 미디어 목록에 다시 등록해 달라고 요청한 뒤 다시 읽는다 (새 녹음이 안 보일 때). */
+    fun rescan()
 }
 
 /**
@@ -87,6 +93,26 @@ class MediaStoreCallRecordingsRepository(
     }
 
     override fun refresh() = load(0)
+
+    override fun rescan() {
+        val paths = recordingFolders().filter { File(it).exists() }.toTypedArray()
+        if (paths.isEmpty()) {
+            load(0)
+            return
+        }
+        try {
+            MediaScannerConnection.scanFile(context, paths, null) { _, _ -> load(delayMillis = 500) }
+        } catch (e: Exception) {
+            Log.w(TAG, "녹음 폴더 다시 검색 실패", e)
+        }
+        load(delayMillis = 3_000)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun recordingFolders(): List<String> {
+        val root = Environment.getExternalStorageDirectory().path
+        return listOf("$root/Recordings/Call", "$root/Call", "$root/Recordings")
+    }
 
     override fun onPermissionResult(granted: Boolean) {
         requestedBefore = true
@@ -148,6 +174,7 @@ class MediaStoreCallRecordingsRepository(
             val iName = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
             val iModified = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
             val iDuration = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val iPath = c.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
             val iSize = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             while (c.moveToNext() && result.size < limit) {
                 val id = c.getLong(iId)
@@ -164,6 +191,8 @@ class MediaStoreCallRecordingsRepository(
                     startMillis = parsed.startMillis ?: (modifiedMillis - duration).coerceAtLeast(0),
                     durationMillis = duration,
                     sizeBytes = if (c.isNull(iSize)) 0L else c.getLong(iSize),
+                    relativePath = c.getString(iPath),
+                    timeFromFileName = parsed.startMillis != null,
                 )
             }
         }

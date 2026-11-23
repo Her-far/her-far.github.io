@@ -221,7 +221,8 @@ class MainViewModel(
         destinationChosen = true
         if (searchActive) exitSearch()
         favoritesEditMode = false
-        backStack.removeAll { it is Route.Settings }
+        if (d != Destination.RECENTS) _callFilter.value = CallFilter.ALL
+        backStack.removeAll { it is Route.Settings || it is Route.RecordingDiagnostics }
         destination = d
         savedState[KEY_DEST] = d.name
     }
@@ -231,6 +232,8 @@ class MainViewModel(
         if (d == destination) return
         destinationChosen = true
         favoritesEditMode = false
+        // 최근기록을 벗어나면 필터(녹음·부재중 등)를 '전체'로 되돌린다
+        if (d != Destination.RECENTS) _callFilter.value = CallFilter.ALL
         destination = d
         savedState[KEY_DEST] = d.name
     }
@@ -262,13 +265,15 @@ class MainViewModel(
         when {
             top == route -> return
             // 상세 → 상세는 쌓지 않고 바꾼다 (펼친 화면 오른쪽 창에서 연락처를 연달아 볼 때)
-            top is Route.Detail && route is Route.Detail -> backStack[backStack.lastIndex] = route
+            top.isDetail() && route.isDetail() -> backStack[backStack.lastIndex] = route
             else -> {
                 backStack.remove(route)
                 backStack.add(route)
             }
         }
     }
+
+    private fun Route?.isDetail() = this is Route.Detail || this is Route.NumberDetail
 
     fun openContact(contact: Contact) {
         if (searchActive && settings.value.saveSearchHistory) {
@@ -294,6 +299,20 @@ class MainViewModel(
         sendEffect(UiEffect.HideKeyboard)
         backStack.clear()
     }
+
+    /** 연락처에 없는 번호의 통화내역·녹음 화면 */
+    fun openNumber(number: String) {
+        if (number.isBlank()) return
+        val contact = (contactsState.value as? ContactsState.Ready)?.findByNumber(KoreanPhoneNumbers.toNationalDigits(number))
+        if (contact != null) {
+            openContact(contact)
+            return
+        }
+        sendEffect(UiEffect.HideKeyboard)
+        push(Route.NumberDetail(number))
+    }
+
+    fun openRecordingDiagnostics() = push(Route.RecordingDiagnostics)
 
     fun openSettings() {
         sendEffect(UiEffect.HideKeyboard)
@@ -629,6 +648,14 @@ class MainViewModel(
     /** 연락처 한 명의 통화 녹음 (파일 이름 또는 통화기록 연결로 찾음) */
     fun recordingsFor(contact: Contact): List<CallRecording> =
         RecordingMatcher.forContact(contact, recordings.value, recentsUi.value.recordingByCallId, callLogEntries.value)
+
+    fun recordingsForNumber(number: String): List<CallRecording> =
+        RecordingMatcher.forNumber(KoreanPhoneNumbers.toNationalDigits(number), recordings.value, recentsUi.value.recordingByCallId, callLogEntries.value)
+
+    fun rescanRecordings() {
+        recordingsRepository.rescan()
+        sendEffect(UiEffect.Message(R.string.message_recordings_rescan))
+    }
 
     fun playRecording(recording: CallRecording, title: String) {
         playing = PlayingRecording(recording, title)

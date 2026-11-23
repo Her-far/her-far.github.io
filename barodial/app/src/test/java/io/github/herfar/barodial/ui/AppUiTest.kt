@@ -324,6 +324,58 @@ class AppUiTest {
     }
 
     @Test
+    fun callHistoryInDetailHasPlayButtonsAndUnknownNumbersOpenNumberDetail() {
+        val now = System.currentTimeMillis()
+        val calls = listOf(
+            CallLogEntry(1, "010-1234-5678", "01012345678", null, CallType.INCOMING, now - 3_600_000, 180),
+            CallLogEntry(2, "02-999-8888", "029998888", null, CallType.OUTGOING, now - 7_200_000, 90),
+        )
+        val recs = listOf(
+            CallRecording(5, "content://media/external/audio/media/5", "통화 녹음 김철수_a.m4a", "김철수", null, now - 3_600_000 + 15_000, 170_000, 1),
+            CallRecording(6, "content://media/external/audio/media/6", "통화 녹음 029998888_b.m4a", "029998888", "029998888", now - 7_200_000 + 9_000, 80_000, 1),
+        )
+        val h = Harness(
+            app,
+            callHistory = FakeCallHistoryRepository(CallHistoryAvailability.Available, calls),
+            recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, recs),
+        )
+        show(h)
+        rule.onNodeWithTag("tab_RECENTS").performClick()
+        settlePager()
+        // 연락처(김철수) → 상세의 통화내역 줄에 ▶
+        rule.onNodeWithTag("callRow_1").performClick()
+        waitForTag("contactDetail")
+        rule.onNodeWithTag("contactDetail").performScrollToNode(hasTestTag("detailPlay_1"))
+        rule.onNodeWithTag("detailPlay_1").performClick()
+        rule.waitUntil(3_000) { h.viewModel.playing?.recording?.id == 5L }
+        rule.runOnUiThread { h.viewModel.closePlayer(); h.viewModel.popRoute() }
+        rule.waitForIdle()
+        // 연락처에 없는 번호 → 번호 상세 (키패드가 아니라)
+        rule.onNodeWithTag("callRow_2").performClick()
+        waitForTag("numberDetail")
+        rule.onNodeWithTag("numberDetailTitle").assertTextEquals("02-999-8888")
+        rule.onNodeWithTag("numberDetail").performScrollToNode(hasTestTag("detailPlay_2"))
+        rule.onNodeWithTag("detailPlay_2").performClick()
+        rule.waitUntil(3_000) { h.viewModel.playing?.recording?.id == 6L }
+    }
+
+    @Test
+    fun diagnosticsScreenOpensFromSettingsAndCanRescan() {
+        val now = System.currentTimeMillis()
+        val recs = listOf(CallRecording(1, "content://media/external/audio/media/1", "통화 녹음 김철수_251123_101010.m4a", "김철수", null, now, 60_000, 1, "Recordings/Call/", true))
+        val h = Harness(app, recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, recs))
+        show(h)
+        rule.onNodeWithTag("settingsButton").performClick()
+        waitForTag("settingsScreen")
+        rule.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsDiagnostics"))
+        rule.onNodeWithTag("settingsDiagnostics").performClick()
+        waitForTag("recordingDiagnostics")
+        rule.onNode(hasText("통화 녹음 김철수_251123_101010.m4a")).assertExists()
+        rule.onNodeWithTag("diagRescan").performClick()
+        rule.waitUntil(3_000) { h.recordings.rescanCount == 1 }
+    }
+
+    @Test
     fun standardBuildListsRecordingFilesWithoutFakeCallLog() {
         val now = System.currentTimeMillis()
         val recs = listOf(

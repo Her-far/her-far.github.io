@@ -16,9 +16,9 @@
 |---|---|---|---|
 | ![상세](docs/screenshots/folded_05_detail.png) | ![키패드](docs/screenshots/folded_06_keypad.png) | ![즐겨찾기](docs/screenshots/folded_07_favorites.png) | ![최근기록](docs/screenshots/folded_08_recents.png) |
 
-| 통화기록 + 녹음 ▶ (실험판) | 상세의 통화 녹음 (실험판) |
-|---|---|
-| ![통화기록 녹음](docs/screenshots/folded_13_calllog_recordings.png) | ![상세 녹음](docs/screenshots/folded_14_detail_recordings.png) |
+| 통화기록 + 녹음 ▶ (실험판) | 상세 통화내역의 녹음 ▶ | 연락처에 없는 번호 상세 | 통화 녹음 연결 진단 |
+|---|---|---|---|
+| ![통화기록 녹음](docs/screenshots/folded_13_calllog_recordings.png) | ![상세 녹음](docs/screenshots/folded_14_detail_recordings.png) | ![번호 상세](docs/screenshots/folded_15_number_detail.png) | ![진단](docs/screenshots/folded_16_recording_diagnostics.png) |
 
 펼친 화면(Galaxy Z Fold 내부 화면): 왼쪽은 같은 목록과 하단 검색창, 오른쪽은 키패드 또는 연락처 상세.
 
@@ -36,10 +36,10 @@
 
 | 파일 | 용도 |
 |---|---|
-| [`dist/barodial-1.1.0.apk`](dist/barodial-1.1.0.apk) | **권장.** 기본(standard) 빌드. 통화기록 권한 선언 없음. 약 3MB |
-| [`dist/barodial-1.1.0-calllog-experimental.apk`](dist/barodial-1.1.0-calllog-experimental.apk) | 실험 빌드. 통화기록(READ_CALL_LOG) 권한을 선언하고 기기에서 허용되는지 검증하는 용도 ([4장](#4-통화기록-제약과-대응)) |
+| [`dist/barodial-1.2.0.apk`](dist/barodial-1.2.0.apk) | **권장.** 기본(standard) 빌드. 통화기록 권한 선언 없음. 약 3MB |
+| [`dist/barodial-1.2.0-calllog-experimental.apk`](dist/barodial-1.2.0-calllog-experimental.apk) | 실험 빌드. 통화기록(READ_CALL_LOG) 권한을 선언하고 기기에서 허용되는지 검증하는 용도 ([4장](#4-통화기록-제약과-대응)) |
 
-> **이미 실험판을 adb로 설치해 통화기록을 쓰고 있다면** 업데이트도 반드시 `adb install -r dist\barodial-1.1.0-calllog-experimental.apk`로 하세요. 휴대폰에서 파일로 덮어쓰면 통화기록 권한이 다시 막힐 수 있습니다.
+> **이미 실험판을 adb로 설치해 통화기록을 쓰고 있다면** 업데이트도 반드시 `adb install -r dist\barodial-1.2.0-calllog-experimental.apk`로 하세요. 휴대폰에서 파일로 덮어쓰면 통화기록 권한이 다시 막힐 수 있습니다.
 
 두 APK 모두 저장소에 포함된 같은 키(`keystore/debug.keystore`)로 서명되어 있어, 서로 바꾸거나 새 버전을 **덮어쓰기 설치**해도 즐겨찾기·설정이 유지됩니다.
 
@@ -56,7 +56,7 @@
 ### PC에서 adb로 설치
 
 ```bat
-adb install -r dist\barodial-1.1.0.apk
+adb install -r dist\barodial-1.2.0.apk
 ```
 
 > 자동 차단이 켜져 있으면 USB 명령(adb)도 막히므로 잠시 꺼야 합니다.
@@ -188,7 +188,7 @@ gradlew.bat assembleDebug
 
 ### 실험 빌드 검증 방법 (사용자 기기에서)
 
-1. `adb install -r dist\barodial-1.1.0-calllog-experimental.apk`
+1. `adb install -r dist\barodial-1.2.0-calllog-experimental.apk`
    - AOSP의 `pm install`은 `--restrict-permissions` 옵션을 주지 않으면 제한 권한을 허용 목록에 올리는 것으로 알려져 있습니다.
    - **삼성 기기에서의 실제 동작은 검증되지 않았습니다.**
 2. 앱 › 최근기록 탭 › [통화기록 권한 요청]을 누릅니다.
@@ -248,6 +248,9 @@ gradlew.bat assembleDebug
 - 사진 또는 이니셜 원, 대표 번호 표시, 각 줄의 📞 버튼으로 바로 발신
 - 연락처가 바뀌면 자동으로 다시 읽습니다 (ContentObserver).
 
+**연락처에 없는 번호**
+- 최근기록에서 연락처에 없는 번호를 누르면 **번호 상세**가 열립니다: 전화·문자·연락처 추가, 그 번호의 통화내역(녹음 ▶).
+
 **연락처 상세**
 - 전화·문자·즐겨찾기 큰 버튼, 여러 번호 각각 발신·문자
 - 번호를 길게 누르면 복사하거나 "이 번호로 바로 걸기"로 지정할 수 있습니다.
@@ -280,10 +283,15 @@ gradlew.bat assembleDebug
 - 파일 이름의 상대 이름·번호와 시각으로 통화기록·연락처와 연결합니다.
   - 지원 형식 예: `통화 녹음 홍길동_231115_143022.m4a`, `Call recording 010-1234-5678_20231115_143022.m4a`
   - 시각이 없으면 파일 수정 시각으로 추정합니다.
+- 연결 규칙 (1.2.0)
+  - 파일 이름의 번호가 다르면 연결하지 않고, 이름은 공백·기호를 무시하고 한쪽이 다른 쪽을 포함해도 같은 사람으로 봅니다 (괄호 이름 `정세영(레아)` 포함).
+  - 녹음 시각이 통화 시작 90초 전 ~ 통화 종료 2분 후 사이이고, 녹음 길이가 통화 길이보다 20초 넘게 길지 않아야 합니다.
+  - 여러 후보가 있으면 시각 차이가 가장 작은 짝부터 연결합니다 (이름이 같으면 우선).
 - 표시 위치
-  - 최근기록(통화기록 있음): 녹음된 통화에 ▶ 버튼, [녹음] 필터
+  - 최근기록(통화기록 있음): 녹음된 통화에 ▶ 버튼, [녹음] 필터 (다른 탭에 갔다 오면 '전체'로 돌아감)
   - 최근기록(기본판): 안내 아래에 통화 녹음 파일 목록
-  - 연락처 상세: '통화 녹음 N건'
+  - 연락처 상세·번호 상세: **통화내역 각 줄에 ▶**, 통화와 연결되지 않은 녹음은 '그 밖의 통화 녹음'
+- **설정 › 통화 녹음 연결 진단**: 찾은 녹음 파일 수, 읽은 통화기록 수, 최근 녹음 파일별 폴더·시각(파일 이름/수정 시각 중 어디서 읽었는지)·연결된 통화를 보여 줍니다. [녹음 폴더 다시 검색]으로 Android 미디어 목록에 녹음 폴더를 다시 등록하게 할 수 있습니다.
 - 재생 창: 재생/일시정지, 위치 이동 막대, 10초 앞뒤, [다른 앱으로 열기]. 앱이 화면에서 사라지면 일시정지합니다.
 
 **즐겨찾기**
@@ -325,8 +333,8 @@ gradlew.bat assembleDebug
 | `assembleDebug` (standard, calllog) | ✅ 성공 |
 | `assembleRelease` (R8 축소) | ✅ 성공 (각 약 3MB) |
 | Android Lint (standard, calllog) | ✅ 오류 0 (경고는 "더 새 버전 있음"류) |
-| 단위·UI 테스트 standard | ✅ 104개 통과 |
-| 단위·UI 테스트 calllog | ✅ 106개 통과 (통화기록 Provider 읽기 테스트 포함) |
+| 단위·UI 테스트 standard | ✅ 113개 통과 |
+| 단위·UI 테스트 calllog | ✅ 116개 통과 (통화기록 Provider 읽기 테스트 포함) |
 
 테스트 범위:
 
@@ -352,6 +360,8 @@ gradlew.bat assembleDebug
   - **복사한 번호 붙여넣기**, ⋮ 메뉴 붙여넣기·대기 추가
   - 녹음된 통화 ▶ → 재생 창, 기본판의 녹음 목록, 오디오 권한 요청
 - **통화 녹음**: 파일 이름 해석 (한글·영문 형식, 번호가 날짜로 오인되지 않음), 통화·연락처 연결 규칙, 가짜 MediaStore로 조회·권한 확인
+
+1.2.0 수정: 일부 제조사 통화기록 Provider는 개수 제한(limit) 매개변수를 정렬보다 먼저 적용해 **오래된 기록만** 돌려줄 수 있습니다. 그러면 최신 통화와 그 녹음이 목록에서 빠집니다. 개수 제한 없이 읽은 뒤 앱에서 최신순으로 정렬하도록 바꾸고, 이를 확인하는 테스트를 추가했습니다.
 
 참고: 전체 테스트 중 ViewModel 테스트가 가끔 시간 초과로 실패하던 원인을 1.1.0에서 찾아 고쳤습니다. 검색어 관찰(snapshotFlow)이 백그라운드 스레드에서 시작되면, 시작 직후의 입력 변경을 놓칠 수 있는 경쟁 상태였습니다. 관찰은 메인 스레드에서 하고 검색 계산만 백그라운드에서 하도록 바꿨습니다.
 

@@ -18,7 +18,13 @@ enum class Destination { HOME, CONTACTS, RECENTS, FAVORITES }
  */
 sealed interface Route {
     data class Detail(val lookupKey: String, val contactId: Long) : Route
+
+    /** 연락처에 없는 번호의 상세 (통화내역·녹음) */
+    data class NumberDetail(val number: String) : Route
     data object Settings : Route
+
+    /** 통화 녹음 연결 진단 */
+    data object RecordingDiagnostics : Route
 }
 
 /** 검색 결과 목록의 한 줄. 리스트 index 0 이 가장 관련도가 높다. */

@@ -237,5 +237,13 @@ class ScreenshotTest {
         rule.runOnUiThread { h.viewModel.openContact(TestContacts.KIM_CHEOLSU) }
         settle("contactDetail")
         capture("folded_14_detail_recordings")
+
+        rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.openNumber("02-555-7777") }
+        settle("numberDetail")
+        capture("folded_15_number_detail")
+
+        rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.openRecordingDiagnostics() }
+        settle("recordingDiagnostics")
+        capture("folded_16_recording_diagnostics")
     }
 }

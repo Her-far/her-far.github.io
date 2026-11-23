@@ -44,7 +44,7 @@ class RecordingsTest {
         assertEquals(at(2023, 11, 15, 14, 30), spaced.startMillis)
 
         val withNumber = RecordingFileNames.parse("통화 녹음 김철수 (010-1234-5678)_231115_143022(1).m4a", zone)
-        assertEquals("김철수", withNumber.label)
+        assertEquals("김철수 (010-1234-5678)", withNumber.label)
         assertEquals("01012345678", withNumber.labelDigits)
         assertEquals(at(2023, 11, 15, 14, 30, 22), withNumber.startMillis)
 
@@ -52,8 +52,34 @@ class RecordingsTest {
         assertNull(garbage.startMillis)
     }
 
-    private fun rec(id: Long, label: String?, digits: String?, start: Long) =
-        CallRecording(id, "content://r/$id", "f$id.m4a", label, digits, start, 60_000, 1)
+    @Test
+    fun nameWithParenthesesIsKeptWhole() {
+        val p = RecordingFileNames.parse("통화 녹음 전기신문 정세영(레아)_251123_124312.m4a", zone)
+        assertEquals("전기신문 정세영(레아)", p.label)
+        assertNull(p.labelDigits)
+        assertEquals(at(2025, 11, 23, 12, 43, 12), p.startMillis)
+        assertTrue(RecordingMatcher.sameName(p.label!!, "전기신문 정세영(레아)"))
+    }
+
+    @Test
+    fun timestampWithoutSeparator() {
+        val a = RecordingFileNames.parse("통화 녹음 01012345678_251123124312.m4a", zone)
+        assertEquals("01012345678", a.labelDigits)
+        assertEquals(at(2025, 11, 23, 12, 43, 12), a.startMillis)
+        val b = RecordingFileNames.parse("통화 녹음 홍길동_20251123124312.m4a", zone)
+        assertEquals("홍길동", b.label)
+        assertEquals(at(2025, 11, 23, 12, 43, 12), b.startMillis)
+    }
+
+    @Test
+    fun nameComparisonToleratesSpacingAndPartialNames() {
+        assertTrue(RecordingMatcher.sameName("전기학회 김정훈 팀장", "전기학회김정훈팀장"))
+        assertTrue(RecordingMatcher.sameName("김정훈", "전기학회 김정훈 팀장"))
+        assertTrue(!RecordingMatcher.sameName("김철수", "김철민"))
+    }
+
+    private fun rec(id: Long, label: String?, digits: String?, start: Long, duration: Long = 60_000) =
+        CallRecording(id, "content://r/$id", "f$id.m4a", label, digits, start, duration, 1)
 
     private fun call(id: Long, digits: String, type: CallType, start: Long, dur: Long = 120) =
         CallLogEntry(id, digits, digits, null, type, start, dur)
@@ -87,6 +113,25 @@ class RecordingsTest {
         val m = RecordingMatcher.match(calls, recs) { if (it.id == 1L) "김철수" else "박영희" }
         assertEquals(10L, m[1]?.id)
         assertNull(m[2])
+    }
+
+    @Test
+    fun longRecordingIsNotAttachedToShortCall() {
+        val t = at(2025, 11, 22, 10, 0)
+        val calls = listOf(call(1, "01012345678", CallType.OUTGOING, t, 30))
+        val recs = listOf(rec(10, null, null, t + 5_000, duration = 300_000))
+        assertTrue(RecordingMatcher.match(calls, recs) { null }.isEmpty())
+    }
+
+    @Test
+    fun manyCallsTodayEachGetTheirOwnRecording() {
+        // 삼성 전화 최근기록처럼 짧은 간격으로 여러 통화가 이어지는 경우
+        val t = at(2025, 11, 23, 10, 0)
+        val names = listOf("협회 김재홍 과장", "한전 이승희 차장(홍보)", "전기신문 이동현", "전기신문 송세준 선배", "전기신문 박윤")
+        val calls = names.mapIndexed { i, _ -> call(i + 1L, "0101111000$i", CallType.INCOMING, t + i * 120_000L, 60) }
+        val recs = names.mapIndexed { i, n -> rec(100L + i, n, null, t + i * 120_000L + 8_000, 55_000) }
+        val m = RecordingMatcher.match(calls, recs) { names[(it.id - 1).toInt()] }
+        assertEquals((1L..5L).associateWith { 100L + it - 1 }, m.mapValues { it.value.id })
     }
 
     @Test

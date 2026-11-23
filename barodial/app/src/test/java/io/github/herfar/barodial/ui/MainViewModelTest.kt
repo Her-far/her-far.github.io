@@ -279,6 +279,30 @@ class MainViewModelTest {
     }
 
     @Test
+    fun recentsFilterResetsToAllWhenLeavingTab() {
+        start()
+        h.viewModel.onPageSettled(Destination.RECENTS)
+        h.viewModel.setCallFilter(CallFilter.RECORDED)
+        h.viewModel.onPageSettled(Destination.FAVORITES)
+        assertEquals(CallFilter.ALL, h.viewModel.callFilter.value)
+        h.viewModel.selectDestination(Destination.RECENTS)
+        h.viewModel.setCallFilter(CallFilter.MISSED)
+        h.viewModel.selectDestination(Destination.HOME)
+        assertEquals(CallFilter.ALL, h.viewModel.callFilter.value)
+    }
+
+    @Test
+    fun openNumberShowsNumberDetailOrContact() {
+        start()
+        h.viewModel.openNumber("02-999-8888")
+        assertEquals(Route.NumberDetail("02-999-8888"), h.viewModel.backStack.last())
+        // 연락처에 있는 번호면 연락처 상세로 (번호 상세를 대신한다)
+        h.viewModel.openNumber("010-1234-5678")
+        assertEquals(Route.Detail(TestContacts.KIM_CHEOLSU.lookupKey, TestContacts.KIM_CHEOLSU.id), h.viewModel.backStack.last())
+        assertEquals(1, h.viewModel.backStack.size)
+    }
+
+    @Test
     fun swipeSettlingChangesTabAndBackReturnsHome() {
         start()
         h.viewModel.onPageSettled(Destination.RECENTS)

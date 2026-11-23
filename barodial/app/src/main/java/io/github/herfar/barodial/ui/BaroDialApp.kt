@@ -73,6 +73,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.herfar.barodial.R
+import io.github.herfar.barodial.core.phone.KoreanPhoneNumbers
 import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
 import io.github.herfar.barodial.data.calllog.CallLogGrouping
 import io.github.herfar.barodial.data.contacts.ContactsState
@@ -84,6 +85,8 @@ import io.github.herfar.barodial.ui.components.SearchDock
 import io.github.herfar.barodial.ui.contacts.ContactDetailScreen
 import io.github.herfar.barodial.ui.contacts.ContactsScreen
 import io.github.herfar.barodial.ui.contacts.DetailActions
+import io.github.herfar.barodial.ui.contacts.NumberDetailActions
+import io.github.herfar.barodial.ui.contacts.NumberDetailScreen
 import io.github.herfar.barodial.ui.dialer.DialerActions
 import io.github.herfar.barodial.ui.dialer.DialerPane
 import io.github.herfar.barodial.ui.favorites.FavoritesActions
@@ -96,6 +99,8 @@ import io.github.herfar.barodial.ui.recents.RecentsActions
 import io.github.herfar.barodial.ui.recents.RecentsScreen
 import io.github.herfar.barodial.ui.search.SearchActions
 import io.github.herfar.barodial.ui.search.SearchResults
+import io.github.herfar.barodial.ui.settings.DiagnosticsActions
+import io.github.herfar.barodial.ui.settings.RecordingDiagnosticsScreen
 import io.github.herfar.barodial.ui.settings.SettingsActions
 import io.github.herfar.barodial.ui.settings.SettingsScreen
 import kotlinx.coroutines.launch
@@ -303,7 +308,7 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
             setFilter = vm::setCallFilter,
             callNumber = vm::callNumber,
             openContact = vm::openContact,
-            openKeypadWith = { vm.openKeypad(it) },
+            openNumber = vm::openNumber,
             playRecording = vm::playRecording,
             requestRecordingsPermission = vm::requestRecordingsPermission,
         )
@@ -458,7 +463,9 @@ private fun CompactOverlay(vm: MainViewModel) {
         when (route) {
             null -> Box(Modifier.fillMaxSize())
             is Route.Detail -> DetailRoute(vm, route, AppIcons.ArrowBack)
+            is Route.NumberDetail -> NumberDetailRoute(vm, route, AppIcons.ArrowBack)
             Route.Settings -> SettingsRoute(vm, AppIcons.ArrowBack)
+            Route.RecordingDiagnostics -> DiagnosticsRoute(vm, AppIcons.ArrowBack)
         }
     }
 }
@@ -474,7 +481,9 @@ private fun RightPane(vm: MainViewModel) {
         when (route) {
             null -> KeypadPane(vm)
             is Route.Detail -> DetailRoute(vm, route, AppIcons.Close)
+            is Route.NumberDetail -> NumberDetailRoute(vm, route, AppIcons.Close)
             Route.Settings -> SettingsRoute(vm, AppIcons.Close)
+            Route.RecordingDiagnostics -> DiagnosticsRoute(vm, AppIcons.ArrowBack)
         }
     }
 }
@@ -528,6 +537,67 @@ private fun DetailRoute(vm: MainViewModel, route: Route.Detail, navigationIcon: 
         navigationIcon = navigationIcon,
         actions = actions,
         recordings = recordings,
+        recordingByCallId = recents.recordingByCallId,
+    )
+}
+
+@Composable
+private fun NumberDetailRoute(vm: MainViewModel, route: Route.NumberDetail, navigationIcon: ImageVector) {
+    val callLog by vm.callLogEntries.collectAsStateWithLifecycle()
+    val availability by vm.callHistoryAvailability.collectAsStateWithLifecycle()
+    val allRecordings by vm.recordings.collectAsStateWithLifecycle()
+    val recents by vm.recentsUi.collectAsStateWithLifecycle()
+    val digits = KoreanPhoneNumbers.toNationalDigits(route.number)
+    val calls = if (availability == CallHistoryAvailability.Available) {
+        remember(callLog, digits) { CallLogGrouping.forNumbers(callLog, setOf(digits)) }
+    } else {
+        null
+    }
+    val recordings = remember(route.number, allRecordings, recents.recordingByCallId) { vm.recordingsForNumber(route.number) }
+    val actions = remember(vm) {
+        NumberDetailActions(
+            navigate = vm::popRoute,
+            call = vm::callNumber,
+            sms = vm::sendSms,
+            addContact = vm::addNumberToContacts,
+            playRecording = vm::playRecording,
+        )
+    }
+    NumberDetailScreen(
+        number = route.number,
+        calls = calls,
+        recordings = recordings,
+        recordingByCallId = recents.recordingByCallId,
+        navigationIcon = navigationIcon,
+        actions = actions,
+    )
+}
+
+@Composable
+private fun DiagnosticsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
+    val recordingsAvailability by vm.recordingsAvailability.collectAsStateWithLifecycle()
+    val callAvailability by vm.callHistoryAvailability.collectAsStateWithLifecycle()
+    val recordings by vm.recordings.collectAsStateWithLifecycle()
+    val callLog by vm.callLogEntries.collectAsStateWithLifecycle()
+    val recents by vm.recentsUi.collectAsStateWithLifecycle()
+    val cs by vm.contactsState.collectAsStateWithLifecycle()
+    val actions = remember(vm) {
+        DiagnosticsActions(
+            back = vm::popRoute,
+            rescan = vm::rescanRecordings,
+            requestPermission = vm::requestRecordingsPermission,
+            play = vm::playRecording,
+        )
+    }
+    RecordingDiagnosticsScreen(
+        recordingsAvailability = recordingsAvailability,
+        callAvailability = callAvailability,
+        recordings = recordings,
+        calls = callLog,
+        recordingByCallId = recents.recordingByCallId,
+        nameFor = { call -> (cs as? ContactsState.Ready)?.findByNumber(call.nationalDigits)?.displayName ?: call.cachedName },
+        navigationIcon = navigationIcon,
+        actions = actions,
     )
 }
 
@@ -564,6 +634,7 @@ private fun SettingsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
             openAppSettings = vm::openAppSettings,
             openDefaultApps = vm::openDefaultAppsSettings,
             requestRecordings = vm::requestRecordingsPermission,
+            openDiagnostics = vm::openRecordingDiagnostics,
         )
     }
     SettingsScreen(

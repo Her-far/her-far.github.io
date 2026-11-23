@@ -139,7 +139,11 @@ class FakeCallRecordingsRepository(
     override val availability: StateFlow<RecordingsAvailability> = mutableAvailability
     override val recordings: StateFlow<List<CallRecording>> = mutableRecordings
     var lastPermissionResult: Boolean? = null
+    var rescanCount = 0
     override fun refresh() = Unit
+    override fun rescan() {
+        rescanCount++
+    }
     override fun onPermissionResult(granted: Boolean) {
         lastPermissionResult = granted
         if (granted) mutableAvailability.value = RecordingsAvailability.Available

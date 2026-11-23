@@ -91,6 +91,7 @@ fun ContactDetailScreen(
     actions: DetailActions,
     modifier: Modifier = Modifier,
     recordings: List<CallRecording> = emptyList(),
+    recordingByCallId: Map<Long, CallRecording> = emptyMap(),
     applyStatusBarInsets: Boolean = true,
 ) {
     Surface(modifier = modifier.fillMaxSize().testTag("contactDetail"), color = MaterialTheme.colorScheme.background) {
@@ -119,7 +120,7 @@ fun ContactDetailScreen(
                 EmptyMessage(stringResource(R.string.detail_not_found), icon = AppIcons.Person)
                 return@Column
             }
-            DetailBody(contact, isFavorite, preferredDigits, calls, recordings, actions)
+            DetailBody(contact, isFavorite, preferredDigits, calls, recordings, recordingByCallId, actions)
         }
     }
 }
@@ -131,8 +132,13 @@ private fun DetailBody(
     preferredDigits: String?,
     calls: List<CallLogEntry>?,
     recordings: List<CallRecording>,
+    recordingByCallId: Map<Long, CallRecording>,
     actions: DetailActions,
 ) {
+    val shownCalls = calls?.take(MAX_CALLS_IN_DETAIL)
+    // 통화내역 줄에 ▶ 로 이미 보이는 녹음은 아래 '통화 녹음' 목록에서 뺀다
+    val attachedIds = shownCalls?.mapNotNullTo(HashSet()) { recordingByCallId[it.id]?.id }.orEmpty()
+    val otherRecordings = recordings.filter { it.id !in attachedIds }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
@@ -216,16 +222,21 @@ private fun DetailBody(
             if (calls.isEmpty()) {
                 item("callsEmpty") { EmptyMessage(stringResource(R.string.detail_call_history_empty)) }
             }
-            items(calls.take(30), key = { "call_${it.id}" }) { call -> CallEntryRow(call) }
+            items(shownCalls.orEmpty(), key = { "call_${it.id}" }) { call ->
+                CallEntryRow(call, recordingByCallId[call.id], onPlay = { actions.playRecording(it, contact.displayName) })
+            }
         }
-        if (recordings.isNotEmpty()) {
+        if (otherRecordings.isNotEmpty()) {
             item("recordingsHeader") {
                 SectionHeader(
-                    stringResource(R.string.detail_recordings_title, recordings.size),
+                    stringResource(
+                        if (calls == null) R.string.detail_recordings_title else R.string.detail_other_recordings_title,
+                        otherRecordings.size,
+                    ),
                     modifier = Modifier.widthIn(max = 640.dp),
                 )
             }
-            items(recordings.take(50), key = { "rec_${it.id}" }) { rec ->
+            items(otherRecordings.take(50), key = { "rec_${it.id}" }) { rec ->
                 RecordingRow(
                     title = TimeDisplay.dateTime(rec.startMillis),
                     subtitle = stringResource(R.string.recording_length, TimeDisplay.duration(rec.durationMillis / 1000)),
@@ -263,7 +274,7 @@ private fun DetailBody(
 
 /** 상세 화면의 큰 동작 버튼 (아이콘 위, 글자 아래: 좁은 화면에서도 글자가 잘리지 않음) */
 @Composable
-private fun QuickAction(
+internal fun QuickAction(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
@@ -352,8 +363,9 @@ private fun PhoneRow(contact: Contact, phone: PhoneNumber, isPreferred: Boolean,
     }
 }
 
+/** 통화내역 한 줄. 녹음이 연결되어 있으면 ▶ 버튼으로 바로 재생한다. */
 @Composable
-private fun CallEntryRow(call: CallLogEntry) {
+internal fun CallEntryRow(call: CallLogEntry, recording: CallRecording?, onPlay: (CallRecording) -> Unit) {
     val colors = LocalCallColors.current
     val (icon, tint, label) = when (call.type) {
         CallType.OUTGOING -> Triple(AppIcons.CallMade, colors.outgoing, R.string.call_type_outgoing)
@@ -363,16 +375,35 @@ private fun CallEntryRow(call: CallLogEntry) {
         else -> Triple(AppIcons.CallReceived, colors.incoming, R.string.call_type_incoming)
     }
     Row(
-        Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+        Modifier
+            .widthIn(max = 640.dp)
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(start = 24.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+            .testTag("detailCall_${call.id}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        val missed = call.type == CallType.MISSED || call.type == CallType.REJECTED || call.type == CallType.BLOCKED
         Text(
-            text = "${TimeDisplay.dateTime(call.timestampMillis)} · ${TimeDisplay.duration(call.durationSeconds)}",
+            text = TimeDisplay.dateTime(call.timestampMillis) + if (!missed) " · ${TimeDisplay.duration(call.durationSeconds)}" else "",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (recording != null) {
+            IconButton(onClick = { onPlay(recording) }, modifier = Modifier.testTag("detailPlay_${call.id}")) {
+                Icon(
+                    AppIcons.PlayArrow,
+                    contentDescription = stringResource(R.string.recording_play),
+                    tint = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+        } else {
+            Spacer(Modifier.width(48.dp))
+        }
     }
 }
+
+private const val MAX_CALLS_IN_DETAIL = 50

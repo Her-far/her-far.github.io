@@ -66,6 +66,7 @@ class SettingsActions(
     val openAppSettings: () -> Unit,
     val openDefaultApps: () -> Unit,
     val requestRecordings: () -> Unit,
+    val openDiagnostics: () -> Unit,
 )
 
 @Composable
@@ -93,7 +94,7 @@ fun SettingsScreen(
                 applyStatusBarInsets = applyStatusBarInsets,
             )
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().testTag("settingsList"),
                 contentPadding = PaddingValues(bottom = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -242,6 +243,15 @@ fun SettingsScreen(
                             else -> actions.openAppSettings
                         },
                         modifier = Modifier.testTag("settingsRecordings"),
+                    )
+                }
+
+                item("recDiagnostics") {
+                    ActionRow(
+                        title = stringResource(R.string.diag_title),
+                        subtitle = stringResource(R.string.settings_diagnostics_desc),
+                        onClick = actions.openDiagnostics,
+                        modifier = Modifier.testTag("settingsDiagnostics"),
                     )
                 }
 

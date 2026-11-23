@@ -64,7 +64,7 @@ class RecentsActions(
     val setFilter: (CallFilter) -> Unit,
     val callNumber: (String) -> Unit,
     val openContact: (Contact) -> Unit,
-    val openKeypadWith: (String) -> Unit,
+    val openNumber: (String) -> Unit,
     val playRecording: (CallRecording, String) -> Unit,
     val requestRecordingsPermission: () -> Unit,
 )
@@ -287,7 +287,7 @@ private fun CallGroupRow(group: CallGroup, contact: Contact?, recording: CallRec
             TimeDisplay.time(call.timestampMillis),
             if (!missed && call.durationSeconds > 0) TimeDisplay.duration(call.durationSeconds) else null,
         ).joinToString(" · ").asAnnotated(),
-        onClick = { if (contact != null) actions.openContact(contact) else actions.openKeypadWith(call.number) },
+        onClick = { if (contact != null) actions.openContact(contact) else actions.openNumber(call.number) },
         leading = {
             if (contact != null) {
                 ContactAvatar(contact.displayName, contact.photoThumbnailUri, 44.dp)
