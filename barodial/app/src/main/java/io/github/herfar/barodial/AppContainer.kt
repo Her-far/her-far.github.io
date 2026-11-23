@@ -10,6 +10,8 @@ import io.github.herfar.barodial.data.favorites.DataStoreFavoritesRepository
 import io.github.herfar.barodial.data.favorites.FavoritesRepository
 import io.github.herfar.barodial.data.history.DataStoreSearchHistoryRepository
 import io.github.herfar.barodial.data.history.SearchHistoryRepository
+import io.github.herfar.barodial.data.recordings.CallRecordingsRepository
+import io.github.herfar.barodial.data.recordings.MediaStoreCallRecordingsRepository
 import io.github.herfar.barodial.data.search.ContactSearchEngine
 import io.github.herfar.barodial.data.settings.DataStoreSettingsRepository
 import io.github.herfar.barodial.data.settings.SettingsRepository
@@ -26,6 +28,7 @@ interface AppContainer {
     val searchHistoryRepository: SearchHistoryRepository
     val settingsRepository: SettingsRepository
     val callHistoryRepository: CallHistoryRepository
+    val callRecordingsRepository: CallRecordingsRepository
     val dialerLauncher: DialerLauncher
 }
 
@@ -46,5 +49,8 @@ class DefaultAppContainer(context: Context) : AppContainer {
     }
     override val settingsRepository: SettingsRepository by lazy { DataStoreSettingsRepository(appContext.appDataStore) }
     override val callHistoryRepository: CallHistoryRepository by lazy { CallHistoryModule.create(appContext, appScope) }
+    override val callRecordingsRepository: CallRecordingsRepository by lazy {
+        MediaStoreCallRecordingsRepository(appContext, appScope)
+    }
     override val dialerLauncher: DialerLauncher by lazy { DialerLauncher(appContext) }
 }

@@ -13,8 +13,8 @@ android {
         minSdk = 29
         // Galaxy Z Fold7 출시 OS(Android 16, API 36) 기준
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

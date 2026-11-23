@@ -16,6 +16,9 @@ import io.github.herfar.barodial.data.favorites.FavoritesRepository
 import io.github.herfar.barodial.data.history.HistoryEntry
 import io.github.herfar.barodial.data.history.HistoryKind
 import io.github.herfar.barodial.data.history.SearchHistoryRepository
+import io.github.herfar.barodial.data.recordings.CallRecording
+import io.github.herfar.barodial.data.recordings.CallRecordingsRepository
+import io.github.herfar.barodial.data.recordings.RecordingsAvailability
 import io.github.herfar.barodial.data.search.ContactSearchEngine
 import io.github.herfar.barodial.data.settings.AppSettings
 import io.github.herfar.barodial.data.settings.SettingsRepository
@@ -126,6 +129,23 @@ class FakeCallHistoryRepository(
     }
 }
 
+class FakeCallRecordingsRepository(
+    availability: RecordingsAvailability = RecordingsAvailability.PermissionRequired("android.permission.READ_MEDIA_AUDIO"),
+    recordings: List<CallRecording> = emptyList(),
+) : CallRecordingsRepository {
+    override val requiredPermission: String = "android.permission.READ_MEDIA_AUDIO"
+    val mutableAvailability = MutableStateFlow(availability)
+    val mutableRecordings = MutableStateFlow(recordings)
+    override val availability: StateFlow<RecordingsAvailability> = mutableAvailability
+    override val recordings: StateFlow<List<CallRecording>> = mutableRecordings
+    var lastPermissionResult: Boolean? = null
+    override fun refresh() = Unit
+    override fun onPermissionResult(granted: Boolean) {
+        lastPermissionResult = granted
+        if (granted) mutableAvailability.value = RecordingsAvailability.Available
+    }
+}
+
 /** 가짜 저장소로 ViewModel 을 만드는 도우미 */
 class Harness(
     context: Context,
@@ -134,6 +154,7 @@ class Harness(
     val history: InMemorySearchHistoryRepository = InMemorySearchHistoryRepository(),
     val settings: InMemorySettingsRepository = InMemorySettingsRepository(),
     val callHistory: FakeCallHistoryRepository = FakeCallHistoryRepository(),
+    val recordings: FakeCallRecordingsRepository = FakeCallRecordingsRepository(),
 ) {
     val launcher = DialerLauncher(context)
     val viewModel = MainViewModel(
@@ -142,6 +163,7 @@ class Harness(
         historyRepository = history,
         settingsRepository = settings,
         callHistoryRepository = callHistory,
+        recordingsRepository = recordings,
         dialer = launcher,
         engine = FakeContactsRepository.engine,
         savedState = SavedStateHandle(),

@@ -28,7 +28,6 @@
     <string name="action_delete">삭제</string>
     <string name="action_done">완료</string>
     <string name="action_edit">편집</string>
-    <string name="action_clear_all">모두 지우기</string>
     <string name="action_copy_number">번호 복사</string>
     <string name="action_favorite">즐겨찾기에 추가</string>
     <string name="action_unfavorite">즐겨찾기에서 빼기</string>
@@ -44,7 +43,7 @@
     <string name="search_title">검색</string>
     <string name="search_close">검색 닫기</string>
     <string name="search_clear">검색어 지우기</string>
-    <string name="search_recent_title">최근 검색</string>
+    <string name="search_recent_title">최근 찾은 연락처</string>
     <string name="search_result_count">연락처 %1$d건</string>
     <string name="search_empty_history">최근 검색 기록이 없습니다.\n이름, 초성(예: ㄱㅊㅅ), 번호 일부를 입력해 보세요.</string>
     <string name="search_no_result">‘%1$s’와 일치하는 연락처가 없습니다.</string>
@@ -58,8 +57,8 @@
     <string name="home_favorites">즐겨찾기</string>
     <string name="home_see_all">모두 보기</string>
     <string name="home_frequent">자주 거는 연락처</string>
-    <string name="home_recent">최근 찾은 연락처</string>
     <string name="home_favorite_tap_to_call">%1$s, 누르면 바로 전화</string>
+    <string name="home_dial_hint">번호를 누르거나 복사한 번호를 붙여넣으세요.\n연락처 상세에서 ☆을 누르면 즐겨찾기가 여기에 표시됩니다.</string>
     <string name="home_hint_title">아래 검색창을 눌러 보세요</string>
     <string name="home_hint_body">이름, 초성(ㄱㅊㅅ), 회사명, 번호 일부로 바로 찾을 수 있습니다.\n연락처 상세에서 ☆을 누르면 즐겨찾기가 이곳에 표시됩니다.</string>
 
@@ -73,6 +72,9 @@
     <string name="permission_contacts_title">연락처 검색을 허용해 주세요</string>
     <string name="permission_contacts_body">이름·초성·번호로 연락처를 찾으려면 연락처 읽기 권한이 필요합니다. 연락처는 이 기기 안에서만 검색에 사용되며 외부로 전송되지 않습니다. 허용하지 않아도 키패드로 번호를 입력해 전화를 걸 수 있습니다.</string>
     <string name="permission_contacts_allow">연락처 권한 허용</string>
+    <string name="permission_contacts_banner">연락처를 허용하면 이름으로 찾을 수 있어요</string>
+    <string name="permission_allow_short">허용</string>
+    <string name="action_settings_short">설정</string>
 
     <!-- 상세 -->
     <string name="detail_not_found">연락처를 찾을 수 없습니다. 삭제되었거나 연락처 앱에서 합쳐졌을 수 있습니다.</string>
@@ -84,6 +86,7 @@
     <string name="detail_unset_preferred">바로 걸기 번호 해제</string>
     <string name="detail_favorite_note">☆ 즐겨찾기는 이 앱에만 저장됩니다. 연락처 앱의 즐겨찾기를 바꾸려면 ‘연락처 앱에서 편집’을 이용하세요. 번호를 길게 누르면 복사하거나 바로 걸기 번호로 지정할 수 있습니다.</string>
     <string name="detail_call_history_title">통화기록 %1$d건 · 총 %2$s</string>
+    <string name="detail_recordings_title">통화 녹음 %1$d건</string>
     <string name="detail_call_history_empty">이 연락처와의 통화기록이 없습니다.</string>
 
     <!-- 번호 선택 -->
@@ -91,10 +94,14 @@
     <string name="picker_remember">다음부터 이 번호로 바로 걸기</string>
 
     <!-- 키패드 -->
-    <string name="dialer_hint">번호를 누르면 일치하는 연락처가 여기에 표시됩니다.\n번호 영역을 길게 누르면 붙여넣기</string>
+    <string name="dialer_hint">번호를 누르면 일치하는 연락처가 여기에 표시됩니다.\n번호 영역을 길게 누르거나 ⋮ 메뉴에서 붙여넣을 수 있습니다.</string>
     <string name="dialer_backspace">한 글자 지우기</string>
     <string name="dialer_clear">모두 지우기</string>
     <string name="dialer_paste">붙여넣기</string>
+    <string name="dialer_paste_copied">복사한 번호 붙여넣기</string>
+    <string name="dialer_menu">더보기</string>
+    <string name="dialer_add_pause">2초간 대기 추가 (,)</string>
+    <string name="dialer_add_wait">대기 추가 (;)</string>
 
     <!-- 즐겨찾기 -->
     <string name="favorites_empty">즐겨찾기가 없습니다.\n연락처 상세에서 ☆을 눌러 추가하세요.</string>
@@ -118,11 +125,26 @@
     <string name="recents_denied_title">통화기록 권한이 허용되지 않았습니다</string>
     <string name="recents_denied_body">통화기록 읽기는 Android의 강하게 제한된 권한이라, 설치 프로그램이 허용 목록에 올리지 않은 앱은 권한 창 없이 거부됩니다. 앱 설정에서 ‘권한’ 또는 ‘제한된 설정 허용’ 메뉴가 보이면 허용할 수 있습니다. 그렇지 않으면 삼성 전화에서 기록을 확인하세요. (자세한 방법은 README 참고)</string>
     <string name="recents_empty">표시할 통화기록이 없습니다.</string>
-    <string name="recents_home_note">이 앱에서 검색하거나 전화 건 연락처는 홈 화면의 ‘최근 찾은 연락처’에 표시됩니다. (실제 통화기록과는 별개입니다)</string>
     <string name="filter_all">전체</string>
     <string name="filter_missed">부재중</string>
     <string name="filter_incoming">수신</string>
     <string name="filter_outgoing">발신</string>
+    <string name="filter_recorded">녹음</string>
+
+    <!-- 통화 녹음 -->
+    <string name="recordings_title">통화 녹음</string>
+    <string name="recordings_empty">통화 녹음 파일을 찾지 못했습니다.\n삼성 전화의 통화 녹음 기능으로 녹음한 파일이 있으면 여기에 표시됩니다.</string>
+    <string name="recordings_permission_body">통화 녹음을 보려면 오디오 파일 접근을 허용하세요</string>
+    <string name="recordings_permission_denied">오디오 파일 접근이 거부되었습니다. 앱 설정에서 허용하세요</string>
+    <string name="recording_play_target">%1$s 통화 녹음 재생</string>
+    <string name="recording_play">재생</string>
+    <string name="recording_pause">일시정지</string>
+    <string name="recording_back10">10초 뒤로</string>
+    <string name="recording_forward10">10초 앞으로</string>
+    <string name="recording_open_external">다른 앱으로 열기</string>
+    <string name="recording_play_failed">이 앱에서 재생할 수 없는 파일입니다. 다른 앱으로 열어 보세요.</string>
+    <string name="recording_file_name">파일: %1$s</string>
+    <string name="recording_length">녹음 길이 %1$s</string>
     <string name="call_type_incoming">수신</string>
     <string name="call_type_outgoing">발신</string>
     <string name="call_type_missed">부재중</string>
@@ -173,6 +195,9 @@
     <string name="settings_perm_call_log_not_included">이 빌드에서는 사용하지 않음 (권한 선언 없음)</string>
     <string name="settings_perm_call_log_required">아직 요청하지 않음 (실험 빌드)</string>
     <string name="settings_perm_call_log_denied">거부됨 또는 제한됨</string>
+    <string name="settings_perm_recordings">통화 녹음 (오디오 파일 읽기)</string>
+    <string name="settings_perm_recordings_found">허용됨 · 녹음 파일 %1$d개</string>
+    <string name="settings_perm_recordings_required">아직 요청하지 않음 · 눌러서 허용</string>
     <string name="settings_section_about">정보</string>
     <string name="settings_privacy_title">개인정보</string>
     <string name="settings_privacy_body">인터넷 권한이 없어 어떤 정보도 외부로 전송할 수 없습니다. 검색 기록·즐겨찾기·설정은 이 기기에만 저장되며 백업에서도 제외됩니다. 광고·분석 SDK를 사용하지 않습니다.</string>
@@ -188,6 +213,7 @@
     <string name="message_enter_number">번호를 입력하세요</string>
     <string name="message_contacts_denied">연락처 권한이 없어도 키패드로 전화를 걸 수 있습니다</string>
     <string name="message_contacts_open_settings">설정 › 권한 › 연락처에서 허용해 주세요</string>
+    <string name="message_recordings_denied">오디오 파일 접근이 없어 통화 녹음을 표시할 수 없습니다</string>
     <string name="message_call_phone_denied">전화 걸기 권한이 없어 다이얼 화면을 거쳐 발신합니다</string>
 
     <!-- 오류 -->
@@ -195,4 +221,5 @@
     <string name="error_no_sms_app">문자 앱을 열 수 없습니다</string>
     <string name="error_no_contacts_app">연락처 앱을 열 수 없습니다</string>
     <string name="error_generic">화면을 열 수 없습니다</string>
+    <string name="error_no_player">녹음을 재생할 앱이 없습니다</string>
 </resources>

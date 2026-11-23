@@ -7,7 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -34,6 +33,8 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -77,6 +79,7 @@ import io.github.herfar.barodial.data.contacts.ContactsState
 import io.github.herfar.barodial.dial.DialerLauncher
 import io.github.herfar.barodial.ui.components.AppTopBar
 import io.github.herfar.barodial.ui.components.NumberPickerSheet
+import io.github.herfar.barodial.ui.components.RecordingPlayerSheet
 import io.github.herfar.barodial.ui.components.SearchDock
 import io.github.herfar.barodial.ui.contacts.ContactDetailScreen
 import io.github.herfar.barodial.ui.contacts.ContactsScreen
@@ -86,6 +89,7 @@ import io.github.herfar.barodial.ui.dialer.DialerPane
 import io.github.herfar.barodial.ui.favorites.FavoritesActions
 import io.github.herfar.barodial.ui.favorites.FavoritesScreen
 import io.github.herfar.barodial.ui.home.HomeActions
+import io.github.herfar.barodial.ui.home.HomeDialer
 import io.github.herfar.barodial.ui.home.HomeScreen
 import io.github.herfar.barodial.ui.icons.AppIcons
 import io.github.herfar.barodial.ui.recents.RecentsActions
@@ -102,7 +106,8 @@ private val ExpandedWidth = 600.dp
 /**
  * 앱 최상위 화면.
  *
- * - 접힌 화면(좁은 창): 탭 화면 + 하단 검색창 + 하단 탭. 상세/키패드/설정은 전체 화면으로 덮는다.
+ * - 접힌 화면(좁은 창): 탭 화면(좌우 스와이프) + 하단 검색창 + 하단 탭. 홈 탭이 다이얼이다.
+ *   상세/설정은 전체 화면으로 덮는다.
  * - 펼친 화면(넓은 창): 왼쪽은 같은 탭 화면(검색창 위치 동일), 오른쪽은 키패드 또는 연락처 상세.
  * - 두 레이아웃은 같은 MainPane 을 movableContentOf 로 옮겨 쓰므로, 접고 펼쳐도
  *   검색어·스크롤 위치·포커스가 그대로 유지된다.
@@ -206,6 +211,31 @@ fun BaroDialApp(viewModel: MainViewModel, dialerLauncher: DialerLauncher) {
             onDismiss = viewModel::dismissNumberPicker,
         )
     }
+
+    viewModel.playing?.let { playing ->
+        RecordingPlayerSheet(
+            recording = playing.recording,
+            title = playing.title,
+            onDismiss = viewModel::closePlayer,
+            onOpenExternally = { viewModel.openRecordingExternally(playing.recording) },
+        )
+    }
+}
+
+@Composable
+private fun rememberDialerActions(vm: MainViewModel): DialerActions = remember(vm) {
+    DialerActions(
+        digit = vm::appendDial,
+        backspace = vm::backspaceDial,
+        clear = vm::clearDial,
+        call = vm::callFromKeypad,
+        addContact = vm::addNumberToContacts,
+        sms = vm::sendSms,
+        openContact = vm::openContact,
+        callContact = vm::callContact,
+        paste = vm::pasteDial,
+        numberCopied = vm::notifyCopied,
+    )
 }
 
 @Composable
@@ -217,10 +247,23 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val recents by vm.recentsUi.collectAsStateWithLifecycle()
     val callAvailability by vm.callHistoryAvailability.collectAsStateWithLifecycle()
+    val recordingsAvailability by vm.recordingsAvailability.collectAsStateWithLifecycle()
     val callFilter by vm.callFilter.collectAsStateWithLifecycle()
     val preferred by vm.preferredNumbers.collectAsStateWithLifecycle()
+    val dialer by vm.dialerUi.collectAsStateWithLifecycle()
     val contactsListState = rememberLazyListState()
     val selectedId = if (expanded) (vm.backStack.lastOrNull() as? Route.Detail)?.contactId else null
+
+    // 탭 ↔ 좌우 스와이프 동기화
+    val pagerState = rememberPagerState(initialPage = vm.destination.ordinal) { Destination.entries.size }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { vm.onPageSettled(Destination.entries[it]) }
+    }
+    LaunchedEffect(vm.destination) {
+        val target = vm.destination.ordinal
+        if (pagerState.currentPage != target) pagerState.animateScrollToPage(target)
+    }
+    val shown = Destination.entries[pagerState.currentPage]
 
     val searchActions = remember(vm) {
         SearchActions(
@@ -239,12 +282,10 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
             requestContactsPermission = vm::requestContactsPermission,
             callContact = { vm.callContact(it) },
             openContact = vm::openContact,
-            callNumber = vm::callNumber,
             showFavorites = { vm.selectDestination(Destination.FAVORITES) },
-            removeRecent = vm::removeHistory,
-            clearRecent = vm::clearHistory,
         )
     }
+    val dialerActions = rememberDialerActions(vm)
     val favoritesActions = remember(vm) {
         FavoritesActions(
             call = { vm.callContact(it) },
@@ -263,43 +304,61 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
             callNumber = vm::callNumber,
             openContact = vm::openContact,
             openKeypadWith = { vm.openKeypad(it) },
+            playRecording = vm::playRecording,
+            requestRecordingsPermission = vm::requestRecordingsPermission,
         )
     }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("mainPane")) {
-        MainTopBar(vm, contacts, search)
+        MainTopBar(vm, shown, contacts, search)
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (vm.searchActive) {
-                SearchResults(search, settings.resultsNearSearchBar, searchActions)
-            } else {
-                Crossfade(targetState = vm.destination, animationSpec = tween(160), label = "tab") { d ->
-                    when (d) {
-                        Destination.HOME -> HomeScreen(home, contacts, homeActions)
-                        Destination.CONTACTS -> ContactsScreen(
-                            state = contacts,
-                            listState = contactsListState,
-                            selectedContactId = selectedId,
-                            onOpen = vm::openContact,
-                            onCall = { vm.callContact(it) },
-                            onRequestPermission = vm::requestContactsPermission,
-                            onCreateContact = { vm.createContact() },
-                        )
-                        Destination.FAVORITES -> FavoritesScreen(
-                            state = favorites,
-                            contactsState = contacts,
-                            editMode = vm.favoritesEditMode,
-                            preferredDigits = { preferred[it.lookupKey] },
-                            actions = favoritesActions,
-                        )
-                        Destination.RECENTS -> RecentsScreen(
-                            availability = callAvailability,
-                            state = recents,
-                            filter = callFilter,
-                            dialerLabel = vm.dialerInfo?.label,
-                            canOpenCallLogScreen = vm.canOpenCallLogScreen,
-                            actions = recentsActions,
-                        )
+            // 탭 화면은 검색 중에도 그대로 두고 그 위에 검색 결과를 덮는다 (검색을 닫으면 보던 화면 그대로).
+            HorizontalPager(
+                state = pagerState,
+                key = { Destination.entries[it].name },
+                beyondViewportPageCount = 1,
+                userScrollEnabled = !vm.searchActive,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("tabPager")
+                    .then(if (vm.searchActive) Modifier.clearAndSetSemantics { } else Modifier),
+            ) { page ->
+                when (Destination.entries[page]) {
+                    Destination.HOME -> if (expanded) {
+                        HomeScreen(home, contacts, homeActions)
+                    } else {
+                        HomeDialer(home, contacts, dialer, settings.keypadHaptics, homeActions, dialerActions)
                     }
+                    Destination.CONTACTS -> ContactsScreen(
+                        state = contacts,
+                        listState = contactsListState,
+                        selectedContactId = selectedId,
+                        onOpen = vm::openContact,
+                        onCall = { vm.callContact(it) },
+                        onRequestPermission = vm::requestContactsPermission,
+                        onCreateContact = { vm.createContact() },
+                    )
+                    Destination.RECENTS -> RecentsScreen(
+                        availability = callAvailability,
+                        recordingsAvailability = recordingsAvailability,
+                        state = recents,
+                        filter = callFilter,
+                        dialerLabel = vm.dialerInfo?.label,
+                        canOpenCallLogScreen = vm.canOpenCallLogScreen,
+                        actions = recentsActions,
+                    )
+                    Destination.FAVORITES -> FavoritesScreen(
+                        state = favorites,
+                        contactsState = contacts,
+                        editMode = vm.favoritesEditMode,
+                        preferredDigits = { preferred[it.lookupKey] },
+                        actions = favoritesActions,
+                    )
+                }
+            }
+            if (vm.searchActive) {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    SearchResults(search, settings.resultsNearSearchBar, searchActions)
                 }
             }
         }
@@ -307,21 +366,21 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
             state = vm.searchField,
             active = vm.searchActive,
             focusRequest = vm.searchFocusRequest,
-            showKeypadButton = true,
+            showKeypadButton = false,
             onFocused = vm::onSearchFocused,
             onExit = vm::exitSearch,
-            onKeypad = { if (expanded) vm.showKeypadPane() else vm.openKeypad() },
+            onKeypad = { vm.openKeypad() },
         )
         if (vm.searchActive || WindowInsets.isImeVisible) {
             Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars.union(WindowInsets.ime)))
         } else {
-            BottomNav(current = vm.destination, onSelect = vm::selectDestination)
+            BottomNav(current = shown, onSelect = vm::selectDestination)
         }
     }
 }
 
 @Composable
-private fun MainTopBar(vm: MainViewModel, contacts: ContactsState, search: SearchUiState) {
+private fun MainTopBar(vm: MainViewModel, shown: Destination, contacts: ContactsState, search: SearchUiState) {
     val settingsButton: @Composable () -> Unit = {
         IconButton(onClick = vm::openSettings, modifier = Modifier.testTag("settingsButton")) {
             Icon(AppIcons.Settings, contentDescription = stringResource(R.string.settings_title))
@@ -339,7 +398,7 @@ private fun MainTopBar(vm: MainViewModel, contacts: ContactsState, search: Searc
         }
         return
     }
-    when (vm.destination) {
+    when (shown) {
         Destination.HOME -> AppTopBar(title = stringResource(R.string.app_name)) { settingsButton() }
         Destination.CONTACTS -> AppTopBar(
             title = stringResource(R.string.tab_contacts),
@@ -350,15 +409,15 @@ private fun MainTopBar(vm: MainViewModel, contacts: ContactsState, search: Searc
             }
             settingsButton()
         }
-        Destination.FAVORITES -> AppTopBar(title = stringResource(R.string.tab_favorites)) {
-            TextButton(onClick = vm::toggleFavoritesEditMode, modifier = Modifier.testTag("favoritesEdit")) {
-                Text(stringResource(if (vm.favoritesEditMode) R.string.action_done else R.string.action_edit))
-            }
-            settingsButton()
-        }
         Destination.RECENTS -> AppTopBar(title = stringResource(R.string.tab_recents)) {
             IconButton(onClick = vm::openSystemCallLog) {
                 Icon(AppIcons.OpenInNew, contentDescription = stringResource(R.string.recents_open_system, vm.dialerInfo?.label ?: stringResource(R.string.default_phone_app)))
+            }
+            settingsButton()
+        }
+        Destination.FAVORITES -> AppTopBar(title = stringResource(R.string.tab_favorites)) {
+            TextButton(onClick = vm::toggleFavoritesEditMode, modifier = Modifier.testTag("favoritesEdit")) {
+                Text(stringResource(if (vm.favoritesEditMode) R.string.action_done else R.string.action_edit))
             }
             settingsButton()
         }
@@ -372,8 +431,8 @@ private fun BottomNav(current: Destination, onSelect: (Destination) -> Unit) {
             val (icon, label) = when (d) {
                 Destination.HOME -> AppIcons.Home to R.string.tab_home
                 Destination.CONTACTS -> AppIcons.People to R.string.tab_contacts
-                Destination.FAVORITES -> AppIcons.Star to R.string.tab_favorites
                 Destination.RECENTS -> AppIcons.History to R.string.tab_recents
+                Destination.FAVORITES -> AppIcons.Star to R.string.tab_favorites
             }
             NavigationBarItem(
                 selected = d == current,
@@ -399,7 +458,6 @@ private fun CompactOverlay(vm: MainViewModel) {
         when (route) {
             null -> Box(Modifier.fillMaxSize())
             is Route.Detail -> DetailRoute(vm, route, AppIcons.ArrowBack)
-            Route.Keypad -> KeypadRoute(vm, navigable = true)
             Route.Settings -> SettingsRoute(vm, AppIcons.ArrowBack)
         }
     }
@@ -408,14 +466,14 @@ private fun CompactOverlay(vm: MainViewModel) {
 @Composable
 private fun RightPane(vm: MainViewModel) {
     AnimatedContent(
-        targetState = vm.backStack.lastOrNull() ?: Route.Keypad,
+        targetState = vm.backStack.lastOrNull(),
         transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
         label = "pane",
         modifier = Modifier.fillMaxSize().testTag("rightPane"),
     ) { route ->
         when (route) {
+            null -> KeypadPane(vm)
             is Route.Detail -> DetailRoute(vm, route, AppIcons.Close)
-            Route.Keypad -> KeypadRoute(vm, navigable = false)
             Route.Settings -> SettingsRoute(vm, AppIcons.Close)
         }
     }
@@ -428,6 +486,8 @@ private fun DetailRoute(vm: MainViewModel, route: Route.Detail, navigationIcon: 
     val preferred by vm.preferredNumbers.collectAsStateWithLifecycle()
     val callLog by vm.callLogEntries.collectAsStateWithLifecycle()
     val availability by vm.callHistoryAvailability.collectAsStateWithLifecycle()
+    val allRecordings by vm.recordings.collectAsStateWithLifecycle()
+    val recents by vm.recentsUi.collectAsStateWithLifecycle()
     val ready = cs as? ContactsState.Ready
     if (ready == null && cs == ContactsState.Loading) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -442,6 +502,11 @@ private fun DetailRoute(vm: MainViewModel, route: Route.Detail, navigationIcon: 
     } else {
         null
     }
+    val recordings = if (contact != null) {
+        remember(contact, allRecordings, recents.recordingByCallId) { vm.recordingsFor(contact) }
+    } else {
+        emptyList()
+    }
     val actions = remember(vm) {
         DetailActions(
             navigate = vm::popRoute,
@@ -452,6 +517,7 @@ private fun DetailRoute(vm: MainViewModel, route: Route.Detail, navigationIcon: 
             viewInContacts = vm::viewInContactsApp,
             setPreferred = vm::setPreferredNumber,
             numberCopied = vm::notifyCopied,
+            playRecording = vm::playRecording,
         )
     }
     ContactDetailScreen(
@@ -461,39 +527,22 @@ private fun DetailRoute(vm: MainViewModel, route: Route.Detail, navigationIcon: 
         calls = calls,
         navigationIcon = navigationIcon,
         actions = actions,
+        recordings = recordings,
     )
 }
 
+/** 펼친 화면 오른쪽 창의 기본 화면: 키패드 */
 @Composable
-private fun KeypadRoute(vm: MainViewModel, navigable: Boolean) {
+private fun KeypadPane(vm: MainViewModel) {
     val state by vm.dialerUi.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val actions = remember(vm) {
-        DialerActions(
-            digit = vm::appendDial,
-            backspace = vm::backspaceDial,
-            clear = vm::clearDial,
-            call = vm::callFromKeypad,
-            addContact = vm::addNumberToContacts,
-            sms = vm::sendSms,
-            openContact = vm::openContact,
-            callContact = vm::callContact,
-            paste = vm::pasteDial,
-        )
-    }
-    Surface(Modifier.fillMaxSize().testTag("keypadRoute"), color = MaterialTheme.colorScheme.background) {
+    val actions = rememberDialerActions(vm)
+    Surface(Modifier.fillMaxSize().testTag("keypadPane"), color = MaterialTheme.colorScheme.background) {
         DialerPane(
             state = state,
             haptics = settings.keypadHaptics,
             actions = actions,
-            topBar = {
-                AppTopBar(
-                    title = stringResource(R.string.keypad),
-                    navigationIcon = if (navigable) AppIcons.ArrowBack else null,
-                    navigationDescription = stringResource(R.string.action_back),
-                    onNavigate = vm::popRoute,
-                )
-            },
+            topBar = { AppTopBar(title = stringResource(R.string.keypad)) },
         )
     }
 }
@@ -503,6 +552,8 @@ private fun SettingsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val cs by vm.contactsState.collectAsStateWithLifecycle()
     val availability by vm.callHistoryAvailability.collectAsStateWithLifecycle()
+    val recordingsAvailability by vm.recordingsAvailability.collectAsStateWithLifecycle()
+    val recordings by vm.recordings.collectAsStateWithLifecycle()
     val actions = remember(vm) {
         SettingsActions(
             back = vm::popRoute,
@@ -512,6 +563,7 @@ private fun SettingsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
             requestContacts = vm::requestContactsPermission,
             openAppSettings = vm::openAppSettings,
             openDefaultApps = vm::openDefaultAppsSettings,
+            requestRecordings = vm::requestRecordingsPermission,
         )
     }
     SettingsScreen(
@@ -519,6 +571,8 @@ private fun SettingsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
         contactsState = cs,
         callPermissionGranted = vm.hasCallPermission(),
         callHistory = availability,
+        recordings = recordingsAvailability,
+        recordingCount = recordings.size,
         dialerInfo = vm.dialerInfo,
         navigationIcon = navigationIcon,
         actions = actions,

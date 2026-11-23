@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,9 +22,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,20 +41,20 @@ import androidx.compose.ui.unit.dp
 import io.github.herfar.barodial.R
 import io.github.herfar.barodial.data.contacts.Contact
 import io.github.herfar.barodial.data.contacts.ContactsState
-import io.github.herfar.barodial.data.history.HistoryEntry
-import io.github.herfar.barodial.data.history.HistoryKind
+import io.github.herfar.barodial.ui.DialerUiState
 import io.github.herfar.barodial.ui.FavoriteItem
 import io.github.herfar.barodial.ui.HomeUiState
 import io.github.herfar.barodial.ui.components.CallIconButton
-import io.github.herfar.barodial.ui.components.CircleIcon
 import io.github.herfar.barodial.ui.components.ContactAvatar
 import io.github.herfar.barodial.ui.components.ContactsPermissionCard
 import io.github.herfar.barodial.ui.components.InfoCard
 import io.github.herfar.barodial.ui.components.ListRow
 import io.github.herfar.barodial.ui.components.PhoneDisplay
 import io.github.herfar.barodial.ui.components.SectionHeader
-import io.github.herfar.barodial.ui.components.TimeDisplay
 import io.github.herfar.barodial.ui.components.asAnnotated
+import io.github.herfar.barodial.ui.dialer.DialerActions
+import io.github.herfar.barodial.ui.dialer.DialerPane
+import io.github.herfar.barodial.ui.dialer.dialKeyHeightFor
 import io.github.herfar.barodial.ui.icons.AppIcons
 import io.github.herfar.barodial.ui.theme.LocalCallColors
 
@@ -59,12 +62,108 @@ class HomeActions(
     val requestContactsPermission: () -> Unit,
     val callContact: (Contact) -> Unit,
     val openContact: (Contact) -> Unit,
-    val callNumber: (String) -> Unit,
     val showFavorites: () -> Unit,
-    val removeRecent: (HistoryEntry) -> Unit,
-    val clearRecent: () -> Unit,
 )
 
+private val FavoritesStripHeight = 124.dp
+
+/**
+ * 접힌 화면의 홈: 위쪽 즐겨찾기 줄 + 아래쪽 다이얼(키패드).
+ * 번호를 누르기 시작하면 즐겨찾기 자리에 일치하는 연락처가 나타난다.
+ * 키 높이는 즐겨찾기 표시 여부와 무관하게 고정해 키패드가 흔들리지 않게 한다.
+ */
+@Composable
+fun HomeDialer(
+    home: HomeUiState,
+    contactsState: ContactsState,
+    dialer: DialerUiState,
+    haptics: Boolean,
+    homeActions: HomeActions,
+    dialerActions: DialerActions,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier.fillMaxSize().testTag("homeScreen")) {
+        val keyHeight = dialKeyHeightFor(maxHeight, FavoritesStripHeight + 72.dp)
+        DialerPane(
+            state = dialer,
+            haptics = haptics,
+            actions = dialerActions,
+            keyHeight = keyHeight,
+            applyBottomInsets = false,
+            emptyContent = {
+                Column(Modifier.fillMaxSize()) {
+                    if (contactsState == ContactsState.PermissionRequired) {
+                        ContactsPermissionBanner(onAllow = homeActions.requestContactsPermission)
+                    }
+                    if (home.favorites.isNotEmpty()) {
+                        FavoritesStrip(home.favorites, homeActions)
+                    } else if (contactsState is ContactsState.Ready) {
+                        Text(
+                            text = stringResource(R.string.home_dial_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
+                        )
+                    }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun FavoritesStrip(favorites: List<FavoriteItem>, actions: HomeActions) {
+    Column(Modifier.fillMaxWidth().testTag("homeFavorites")) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.home_favorites),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = actions.showFavorites) { Text(stringResource(R.string.home_see_all)) }
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(favorites, key = { it.contact.id }) { item ->
+                FavoriteBubble(item, onCall = { actions.callContact(item.contact) }, onOpen = { actions.openContact(item.contact) })
+            }
+        }
+    }
+}
+
+/** 키패드 위 좁은 공간용 연락처 권한 안내 (한 줄) */
+@Composable
+private fun ContactsPermissionBanner(onAllow: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("contactsPermissionBanner"),
+    ) {
+        Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(AppIcons.Lock, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                stringResource(R.string.permission_contacts_banner),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onAllow, modifier = Modifier.testTag("allowContactsBannerButton")) {
+                Text(stringResource(R.string.permission_allow_short))
+            }
+        }
+    }
+}
+
+/**
+ * 펼친 화면의 홈 (오른쪽 창에 키패드가 있으므로 여기에는 즐겨찾기와 자주 거는 연락처).
+ */
 @Composable
 fun HomeScreen(
     state: HomeUiState,
@@ -82,35 +181,13 @@ fun HomeScreen(
                 Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             }
             is ContactsState.Error -> item("error") {
-                InfoCard(
-                    title = stringResource(R.string.contacts_error_title),
-                    body = contactsState.message,
-                    icon = AppIcons.Info,
-                )
+                InfoCard(title = stringResource(R.string.contacts_error_title), body = contactsState.message, icon = AppIcons.Info)
             }
             is ContactsState.Ready -> Unit
         }
-
         if (state.favorites.isNotEmpty()) {
-            item("favHeader") {
-                SectionHeader(
-                    title = stringResource(R.string.home_favorites),
-                    actionLabel = stringResource(R.string.home_see_all),
-                    onAction = actions.showFavorites,
-                )
-            }
-            item("favRow") {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    items(state.favorites, key = { it.contact.id }) { item ->
-                        FavoriteBubble(item, onCall = { actions.callContact(item.contact) }, onOpen = { actions.openContact(item.contact) })
-                    }
-                }
-            }
+            item("favStrip") { FavoritesStrip(state.favorites, actions) }
         }
-
         if (state.frequent.isNotEmpty()) {
             item("freqHeader") { SectionHeader(stringResource(R.string.home_frequent)) }
             items(state.frequent, key = { "freq_${it.id}" }) { c ->
@@ -125,45 +202,23 @@ fun HomeScreen(
                 )
             }
         }
-
-        if (state.recent.isNotEmpty()) {
-            item("recentHeader") {
-                SectionHeader(
-                    title = stringResource(R.string.home_recent),
-                    actionLabel = stringResource(R.string.action_clear_all),
-                    onAction = actions.clearRecent,
-                )
+        if (contactsState is ContactsState.Ready && state.favorites.isEmpty() && state.frequent.isEmpty()) {
+            item("hint") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(AppIcons.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
+                    Text(stringResource(R.string.home_hint_title), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                    Text(
+                        stringResource(R.string.home_hint_body),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
-            items(state.recent, key = { "recent_${it.entry.kind}_${it.entry.key}" }) { item ->
-                val contact = item.contact
-                val number = if (item.entry.kind == HistoryKind.NUMBER) item.entry.key else null
-                val title = contact?.displayName ?: PhoneDisplay.format(number.orEmpty())
-                val subtitleParts = listOfNotNull(
-                    if (contact != null) (number?.let { PhoneDisplay.format(it) } ?: contact.primaryPhone?.let { PhoneDisplay.format(it) }) else null,
-                    TimeDisplay.relative(item.entry.lastUsedMillis),
-                )
-                ListRow(
-                    title = title.asAnnotated(),
-                    subtitle = subtitleParts.joinToString(" · ").asAnnotated(),
-                    onClick = { if (contact != null) actions.openContact(contact) else actions.callNumber(number.orEmpty()) },
-                    leading = {
-                        if (contact != null) ContactAvatar(contact.displayName, contact.photoThumbnailUri, 44.dp) else CircleIcon(AppIcons.History)
-                    },
-                    trailing = {
-                        IconButton(onClick = { actions.removeRecent(item.entry) }) {
-                            Icon(AppIcons.Close, contentDescription = stringResource(R.string.search_remove_history), tint = MaterialTheme.colorScheme.outline)
-                        }
-                        CallIconButton(
-                            onClick = { if (number != null) actions.callNumber(number) else contact?.let(actions.callContact) },
-                            contentDescription = stringResource(R.string.action_call_target, title),
-                        )
-                    },
-                )
-            }
-        }
-
-        if (contactsState is ContactsState.Ready && state.favorites.isEmpty() && state.recent.isEmpty() && state.frequent.isEmpty()) {
-            item("hint") { HomeHint() }
         }
     }
 }
@@ -175,31 +230,34 @@ private fun FavoriteBubble(item: FavoriteItem, onCall: () -> Unit, onOpen: () ->
     val openLabel = stringResource(R.string.action_open_detail)
     Column(
         modifier = Modifier
-            .width(80.dp)
+            .width(76.dp)
             .clip(RoundedCornerShape(16.dp))
             .combinedClickable(onClick = onCall, onLongClick = onOpen)
             .semantics {
                 contentDescription = callLabel
-                onLongClick(label = openLabel) { onOpen(); true }
+                onLongClick(label = openLabel) {
+                    onOpen()
+                    true
+                }
             }
-            .padding(vertical = 8.dp)
+            .padding(vertical = 6.dp)
             .testTag("favoriteBubble_${contact.id}"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            ContactAvatar(contact.displayName, contact.photoThumbnailUri, 60.dp)
+            ContactAvatar(contact.displayName, contact.photoThumbnailUri, 56.dp)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .size(22.dp)
+                    .size(20.dp)
                     .clip(CircleShape)
                     .background(LocalCallColors.current.call),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(AppIcons.Call, contentDescription = null, tint = LocalCallColors.current.onCall, modifier = Modifier.size(13.dp))
+                Icon(AppIcons.Call, contentDescription = null, tint = LocalCallColors.current.onCall, modifier = Modifier.size(12.dp))
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             text = contact.displayName,
             style = MaterialTheme.typography.bodyMedium,
@@ -207,28 +265,5 @@ private fun FavoriteBubble(item: FavoriteItem, onCall: () -> Unit, onOpen: () ->
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-@Composable
-private fun HomeHint() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(AppIcons.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
-        Text(
-            text = stringResource(R.string.home_hint_title),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = stringResource(R.string.home_hint_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Icon(AppIcons.ArrowDownward, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
     }
 }

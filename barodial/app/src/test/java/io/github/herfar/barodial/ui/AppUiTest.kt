@@ -2,6 +2,8 @@ package io.github.herfar.barodial.ui
 
 import android.Manifest
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.provider.CallLog
 import androidx.activity.ComponentActivity
@@ -26,13 +28,25 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
+import io.github.herfar.barodial.data.calllog.CallLogEntry
+import io.github.herfar.barodial.data.calllog.CallType
 import io.github.herfar.barodial.data.contacts.ContactsState
+import io.github.herfar.barodial.data.recordings.CallRecording
+import io.github.herfar.barodial.data.recordings.RecordingsAvailability
+import io.github.herfar.barodial.testing.FakeCallHistoryRepository
+import io.github.herfar.barodial.testing.FakeCallRecordingsRepository
 import io.github.herfar.barodial.testing.FakeContactsRepository
 import io.github.herfar.barodial.testing.Harness
+import io.github.herfar.barodial.testing.TestContacts
 import io.github.herfar.barodial.ui.theme.BaroDialTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -65,6 +79,13 @@ class AppUiTest {
 
     private fun startedActivity(): Intent? = shadowOf(rule.activity).nextStartedActivity
 
+    /** 페이지 넘김 애니메이션이 끝날 때까지 시계를 진행한다. */
+    private fun settlePager() {
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.waitForIdle()
+    }
+
     private fun displayText(): String =
         rule.onNodeWithTag("dialDisplay", useUnmergedTree = true).fetchSemanticsNode()
             .config.getOrElseNullable(SemanticsProperties.Text) { null }?.joinToString("") { it.text }.orEmpty()
@@ -81,7 +102,7 @@ class AppUiTest {
     fun searchBarStaysAtTheSameBottomPositionOnEveryTab() {
         show(Harness(app))
         val root = rule.onRoot().getBoundsInRoot()
-        val positions = listOf("tab_HOME", "tab_CONTACTS", "tab_FAVORITES", "tab_RECENTS").map { tab ->
+        val positions = listOf("tab_HOME", "tab_CONTACTS", "tab_RECENTS", "tab_FAVORITES").map { tab ->
             rule.onNodeWithTag(tab).performClick()
             rule.waitForIdle()
             rule.onNodeWithTag("searchBar").assertIsDisplayed()
@@ -110,7 +131,8 @@ class AppUiTest {
         assertEquals(Intent.ACTION_DIAL, started!!.action)
         assertEquals("tel:010-1234-5678", started.data.toString())
         // 발신 후 검색이 닫히고 원래 화면(홈)으로 돌아온다
-        rule.waitUntil(3_000) { rule.onAllNodesWithTag("homeScreen").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(3_000) { rule.onAllNodesWithTag("searchResults").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("homeScreen").assertIsDisplayed()
     }
 
     @Test
@@ -125,7 +147,7 @@ class AppUiTest {
     @Test
     fun keypadInputFormattingBackspaceAndCall() {
         show(Harness(app))
-        rule.onNodeWithTag("keypadButton").performClick()
+        // 홈 탭이 곧 다이얼이다
         waitForTag("dialerPane")
         "01012345678".forEach { rule.onNodeWithTag("key_$it").performClick() }
         awaitDisplay("010-1234-5678")
@@ -145,14 +167,13 @@ class AppUiTest {
     @Test
     fun withoutContactsPermissionTheAppExplainsAndKeypadStillWorks() {
         show(Harness(app, contacts = FakeContactsRepository(ContactsState.PermissionRequired)))
-        rule.onNodeWithTag("contactsPermissionCard").assertIsDisplayed()
-        rule.onNodeWithTag("allowContactsButton").performClick()
+        rule.onNodeWithTag("contactsPermissionBanner").assertIsDisplayed()
+        rule.onNodeWithTag("allowContactsBannerButton").performClick()
         rule.waitForIdle()
         val requested = shadowOf(rule.activity).lastRequestedPermission
         assertNotNull(requested)
         assertTrue(Manifest.permission.READ_CONTACTS in requested!!.requestedPermissions)
 
-        rule.onNodeWithTag("keypadButton").performClick()
         waitForTag("dialerPane")
         "119".forEach { rule.onNodeWithTag("key_$it").performClick() }
         rule.onNodeWithTag("dialCallButton").performClick()
@@ -227,5 +248,127 @@ class AppUiTest {
         rule.waitForIdle()
         rule.onNode(hasTestTag("searchField") and hasText("김철")).assertExists()
         rule.onNodeWithTag("contactResult_1").assertIsDisplayed()
+    }
+
+    @Test
+    fun bottomMenuOrderAndSwipeBetweenTabs() {
+        val h = Harness(app)
+        show(h)
+        val lefts = listOf("tab_HOME", "tab_CONTACTS", "tab_RECENTS", "tab_FAVORITES").map { rule.onNodeWithTag(it).getBoundsInRoot().left }
+        assertEquals("하단 메뉴 순서: 홈 · 연락처 · 최근기록 · 즐겨찾기", lefts.sorted(), lefts)
+
+        val order = mutableListOf(h.viewModel.destination)
+        repeat(3) { i ->
+            rule.onNodeWithTag("tabPager").performTouchInput { swipeLeft() }
+            settlePager()
+            assertTrue("${i + 1}번째 스와이프 후에도 ${order.last()} 그대로", h.viewModel.destination != order.last())
+            order += h.viewModel.destination
+        }
+        assertEquals(listOf(Destination.HOME, Destination.CONTACTS, Destination.RECENTS, Destination.FAVORITES), order)
+
+        rule.onNodeWithTag("tabPager").performTouchInput { swipeRight() }
+        settlePager()
+        assertEquals(Destination.RECENTS, h.viewModel.destination)
+        // 하단 메뉴를 눌러도 같은 페이지로 넘어간다
+        rule.onNodeWithTag("tab_HOME").performClick()
+        settlePager()
+        assertEquals(Destination.HOME, h.viewModel.destination)
+        rule.onNodeWithTag("dialerPane").assertIsDisplayed()
+    }
+
+    @Test
+    fun copiedNumberCanBePastedIntoHomeDialer() {
+        show(Harness(app))
+        waitForTag("dialerPane")
+        val clipboard = app.getSystemService(ClipboardManager::class.java)
+        rule.runOnUiThread { clipboard.setPrimaryClip(ClipData.newPlainText("memo", "연락처: 010-2345-6789 (회사)")) }
+        waitForTag("pasteChip")
+        rule.onNodeWithTag("pasteChip").performClick()
+        awaitDisplay("010-2345-6789")
+        // 입력이 생기면 붙여넣기 버튼은 사라진다
+        rule.waitUntil(3_000) { rule.onAllNodesWithTag("pasteChip").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
+    fun dialMenuOffersPasteAndPauses() {
+        show(Harness(app))
+        waitForTag("dialerPane")
+        val clipboard = app.getSystemService(ClipboardManager::class.java)
+        rule.runOnUiThread { clipboard.setPrimaryClip(ClipData.newPlainText("memo", "0212345678")) }
+        rule.onNodeWithTag("dialMenu").performClick()
+        rule.onNodeWithTag("dialMenuPaste").performClick()
+        awaitDisplay("02-1234-5678")
+        rule.onNodeWithTag("dialMenu").performClick()
+        rule.onNode(hasText("2초간 대기 추가 (,)")).performClick()
+        awaitDisplay("0212345678,")
+    }
+
+    @Test
+    fun recordedCallsShowPlayButtonAndOpenPlayer() {
+        val now = System.currentTimeMillis()
+        val call = CallLogEntry(77, "010-1234-5678", "01012345678", null, CallType.INCOMING, now - 3_600_000, 180)
+        val rec = CallRecording(5, "content://media/external/audio/media/5", "통화 녹음 김철수_251122_101010.m4a", "김철수", null, now - 3_600_000 + 20_000, 175_000, 1_000)
+        val h = Harness(
+            app,
+            callHistory = FakeCallHistoryRepository(CallHistoryAvailability.Available, listOf(call)),
+            recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, listOf(rec)),
+        )
+        show(h)
+        rule.onNodeWithTag("tab_RECENTS").performClick()
+        waitForTag("playCall_77")
+        rule.onNodeWithTag("filter_RECORDED").assertIsDisplayed()
+        rule.onNodeWithTag("playCall_77").performClick()
+        rule.waitUntil(3_000) { h.viewModel.playing != null }
+        assertEquals(5L, h.viewModel.playing?.recording?.id)
+        waitForTag("recordingPlayer")
+    }
+
+    @Test
+    fun standardBuildListsRecordingFilesWithoutFakeCallLog() {
+        val now = System.currentTimeMillis()
+        val recs = listOf(
+            CallRecording(1, "content://media/external/audio/media/1", "통화 녹음 김철수_251122_101010.m4a", "김철수", null, now - 7_200_000, 60_000, 1),
+            CallRecording(2, "content://media/external/audio/media/2", "통화 녹음 0212345678_251121_090000.m4a", "0212345678", "0212345678", now - 90_000_000, 30_000, 1),
+        )
+        show(Harness(app, recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, recs)))
+        rule.onNodeWithTag("tab_RECENTS").performClick()
+        rule.onNodeWithTag("recentsExplanation").assertIsDisplayed()
+        rule.onAllNodesWithTag("callLogList").assertCountEquals(0)
+        rule.onNodeWithTag("recentsExplanation").performScrollToNode(hasTestTag("recording_2"))
+        rule.onNodeWithTag("recording_1").assertExists()
+        rule.onNodeWithTag("recording_2").assertExists()
+    }
+
+    @Test
+    fun recordingsPermissionIsRequestedFromRecentsTab() {
+        show(Harness(app))
+        rule.onNodeWithTag("tab_RECENTS").performClick()
+        rule.onNodeWithTag("recentsExplanation").performScrollToNode(hasTestTag("allowRecordingsButton"))
+        rule.onNodeWithTag("allowRecordingsButton").performClick()
+        rule.waitForIdle()
+        val requested = shadowOf(rule.activity).lastRequestedPermission
+        assertTrue(requested!!.requestedPermissions.contains("android.permission.READ_MEDIA_AUDIO"))
+    }
+
+    @Test
+    fun fastScrollerStillJumpsOnVerticalDrag() {
+        val syllables = listOf("가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하")
+        var id = 500L
+        val many = syllables.flatMap { sy ->
+            (1..5).map { n -> TestContacts.contact(id++, "${sy}연락처$n", TestContacts.phone("010-%04d-%04d".format(id, n))) }
+        } + TestContacts.contact(999, "1004 관리실", TestContacts.phone("02-100-4000"))
+        val h = Harness(app, contacts = FakeContactsRepository.ready(many))
+        show(h)
+        rule.onNodeWithTag("tab_CONTACTS").performClick()
+        settlePager()
+        waitForTag("fastScroller")
+        rule.onNodeWithTag("contactRow_500").assertIsDisplayed()
+        // 스크롤 막대를 위에서 아래로 끌면 마지막 구간(#)으로 이동
+        rule.onNodeWithTag("fastScroller").performTouchInput { swipeDown(startY = top + 5f, endY = bottom - 2f, durationMillis = 500) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("contactRow_999").assertIsDisplayed()
+        // 연락처 탭은 그대로 (가로 스와이프로 오인하지 않음)
+        settlePager()
+        assertEquals(Destination.CONTACTS, h.viewModel.destination)
     }
 }

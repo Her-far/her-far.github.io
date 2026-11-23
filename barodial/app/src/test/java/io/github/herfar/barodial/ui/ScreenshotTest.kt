@@ -11,8 +11,15 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
+import io.github.herfar.barodial.data.calllog.CallLogEntry
+import io.github.herfar.barodial.data.calllog.CallType
 import io.github.herfar.barodial.data.favorites.FavoriteEntry
+import io.github.herfar.barodial.data.recordings.CallRecording
+import io.github.herfar.barodial.data.recordings.RecordingsAvailability
 import io.github.herfar.barodial.data.settings.ThemeMode
+import io.github.herfar.barodial.testing.FakeCallHistoryRepository
+import io.github.herfar.barodial.testing.FakeCallRecordingsRepository
 import io.github.herfar.barodial.testing.FakeContactsRepository
 import io.github.herfar.barodial.testing.Harness
 import io.github.herfar.barodial.testing.InMemoryFavoritesRepository
@@ -55,7 +62,25 @@ class ScreenshotTest {
         TestContacts.contact(30, "Bob Lee", TestContacts.phone("+1 650-555-0100")),
     )
 
-    private fun harness(): Harness {
+    private val now = System.currentTimeMillis()
+    private val hour = 3_600_000L
+
+    private fun sampleRecordings() = listOf(
+        CallRecording(101, "content://media/external/audio/media/101", "통화 녹음 김철수_a.m4a", "김철수", null, now - hour + 20_000, 300_000, 1),
+        CallRecording(102, "content://media/external/audio/media/102", "통화 녹음 왕서방_b.m4a", "왕서방", null, now - 26 * hour + 10_000, 590_000, 1),
+        CallRecording(103, "content://media/external/audio/media/103", "통화 녹음 01055551234_c.m4a", "01055551234", "01055551234", now - 72 * hour, 95_000, 1),
+    )
+
+    private fun sampleCalls() = listOf(
+        CallLogEntry(1, "010-1234-5678", "01012345678", "김철수", CallType.INCOMING, now - hour, 312),
+        CallLogEntry(2, "02-555-7777", "025557777", null, CallType.OUTGOING, now - 2 * hour, 45),
+        CallLogEntry(3, "+82 10-2222-3333", "01022223333", "박영희", CallType.MISSED, now - 3 * hour, 0),
+        CallLogEntry(4, "+82 10-2222-3333", "01022223333", "박영희", CallType.MISSED, now - 3 * hour - 60_000, 0),
+        CallLogEntry(5, "010-5555-6666", "01055556666", "왕서방", CallType.OUTGOING, now - 26 * hour, 600),
+        CallLogEntry(6, "123", "123", "고객센터", CallType.OUTGOING, now - 27 * hour, 120),
+    )
+
+    private fun harness(callLog: Boolean = false): Harness {
         val favorites = InMemoryFavoritesRepository(
             listOf(
                 FavoriteEntry("lookup-1", 1, "김철수"),
@@ -63,7 +88,17 @@ class ScreenshotTest {
                 FavoriteEntry("lookup-9", 9, "왕서방"),
             ),
         )
-        val h = Harness(app, contacts = FakeContactsRepository.ready(sampleContacts), favorites = favorites)
+        val h = Harness(
+            app,
+            contacts = FakeContactsRepository.ready(sampleContacts),
+            favorites = favorites,
+            callHistory = if (callLog) {
+                FakeCallHistoryRepository(CallHistoryAvailability.Available, sampleCalls())
+            } else {
+                FakeCallHistoryRepository()
+            },
+            recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, sampleRecordings()),
+        )
         runBlocking {
             h.history.recordContact("lookup-24", 24, "문지우", "010-4567-8901")
             h.history.recordContact("lookup-24", 24, "문지우", "010-4567-8901")
@@ -121,11 +156,11 @@ class ScreenshotTest {
         settle("contactDetail")
         capture("folded_05_detail")
 
-        rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.openKeypad("01012345") }
-        settle("dialerPane")
+        rule.runOnUiThread { h.viewModel.openKeypad("01012345") }
+        settle("dialerMatches")
         capture("folded_06_keypad")
 
-        rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.selectDestination(Destination.FAVORITES) }
+        rule.runOnUiThread { h.viewModel.clearDial(); h.viewModel.selectDestination(Destination.FAVORITES) }
         settle("favoritesGrid")
         capture("folded_07_favorites")
 
@@ -155,7 +190,7 @@ class ScreenshotTest {
     fun foldedNoPermission() {
         val h = Harness(app, contacts = FakeContactsRepository(io.github.herfar.barodial.data.contacts.ContactsState.PermissionRequired))
         show(h)
-        settle("contactsPermissionCard")
+        settle("contactsPermissionBanner")
         capture("folded_10_no_permission")
     }
 
@@ -185,8 +220,22 @@ class ScreenshotTest {
         show(h)
         settle("homeScreen")
         capture("folded_11_large_font_home")
-        rule.runOnUiThread { h.viewModel.openKeypad() }
-        settle("dialerPane")
+        rule.runOnUiThread { h.viewModel.openKeypad("0101234") }
+        settle("dialerMatches")
         capture("folded_12_large_font_keypad")
+    }
+
+    @Test
+    @Config(qualifiers = "ko-rKR-w384dp-h832dp-xxhdpi")
+    fun foldedCallLogWithRecordings() {
+        val h = harness(callLog = true)
+        show(h)
+        rule.runOnUiThread { h.viewModel.selectDestination(Destination.RECENTS) }
+        settle("playCall_1")
+        capture("folded_13_calllog_recordings")
+
+        rule.runOnUiThread { h.viewModel.openContact(TestContacts.KIM_CHEOLSU) }
+        settle("contactDetail")
+        capture("folded_14_detail_recordings")
     }
 }

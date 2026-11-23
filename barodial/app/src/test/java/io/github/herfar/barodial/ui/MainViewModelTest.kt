@@ -9,7 +9,15 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.github.herfar.barodial.data.calllog.CallFilter
+import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
+import io.github.herfar.barodial.data.calllog.CallLogEntry
+import io.github.herfar.barodial.data.calllog.CallType
 import io.github.herfar.barodial.data.contacts.ContactsState
+import io.github.herfar.barodial.data.recordings.CallRecording
+import io.github.herfar.barodial.data.recordings.RecordingsAvailability
+import io.github.herfar.barodial.testing.FakeCallHistoryRepository
+import io.github.herfar.barodial.testing.FakeCallRecordingsRepository
 import io.github.herfar.barodial.data.history.HistoryKind
 import io.github.herfar.barodial.data.settings.AppSettings
 import io.github.herfar.barodial.testing.FakeContactsRepository
@@ -257,5 +265,70 @@ class MainViewModelTest {
         h.viewModel.onPermissionResult(PermissionPurpose.CONTACTS, granted = true)
         awaitUntil { h.viewModel.settings.value.contactsPermissionRequested }
         assertEquals(1, h.contacts.reloadCount)
+    }
+
+    @Test
+    fun openKeypadGoesToHomeDialer() {
+        start()
+        h.viewModel.selectDestination(Destination.CONTACTS)
+        h.viewModel.openContact(TestContacts.KIM_CHEOLSU)
+        h.viewModel.openKeypad("010-1111-2222")
+        assertEquals(Destination.HOME, h.viewModel.destination)
+        assertTrue(h.viewModel.backStack.isEmpty())
+        assertEquals("01011112222", h.viewModel.dialDigits.value)
+    }
+
+    @Test
+    fun swipeSettlingChangesTabAndBackReturnsHome() {
+        start()
+        h.viewModel.onPageSettled(Destination.RECENTS)
+        assertEquals(Destination.RECENTS, h.viewModel.destination)
+        assertTrue(h.viewModel.onBack())
+        assertEquals(Destination.HOME, h.viewModel.destination)
+    }
+
+    @Test
+    fun recordingsAreMatchedToCallsAndContacts() {
+        val t = 1_763_800_000_000L
+        val calls = listOf(
+            CallLogEntry(1, "010-1234-5678", "01012345678", "김철수", CallType.INCOMING, t, 300),
+            CallLogEntry(2, "02-555-1234", "025551234", null, CallType.OUTGOING, t - 86_400_000, 60),
+            CallLogEntry(3, "010-9876-5432", "01098765432", null, CallType.MISSED, t - 3_600_000, 0),
+        )
+        val recs = listOf(
+            CallRecording(10, "content://r/10", "통화 녹음 김철수_x.m4a", "김철수", null, t + 15_000, 290_000, 1),
+            CallRecording(11, "content://r/11", "통화 녹음 025551234_x.m4a", "025551234", "025551234", t - 86_400_000 + 5_000, 55_000, 1),
+        )
+        start(
+            Harness(
+                app,
+                callHistory = FakeCallHistoryRepository(CallHistoryAvailability.Available, calls),
+                recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, recs),
+            ),
+        )
+        awaitUntil { h.viewModel.recentsUi.value.recordingByCallId.size == 2 }
+        assertEquals(10L, h.viewModel.recentsUi.value.recordingByCallId[1]?.id)
+        assertEquals(11L, h.viewModel.recentsUi.value.recordingByCallId[2]?.id)
+
+        h.viewModel.setCallFilter(CallFilter.RECORDED)
+        awaitUntil { h.viewModel.recentsUi.value.sections.sumOf { s -> s.groups.size } == 2 }
+
+        assertEquals(listOf(10L), h.viewModel.recordingsFor(TestContacts.KIM_CHEOLSU).map { it.id })
+        assertEquals(listOf(11L), h.viewModel.recordingsFor(TestContacts.LEE_CHEOLSU).map { it.id })
+
+        h.viewModel.playRecording(recs[0], "김철수")
+        assertEquals("김철수", h.viewModel.playing?.title)
+        assertTrue(h.viewModel.onBack())
+        assertNull(h.viewModel.playing)
+    }
+
+    @Test
+    fun recordingsPermissionFlow() {
+        start()
+        h.viewModel.requestRecordingsPermission()
+        awaitUntil { effects.any { it is UiEffect.RequestPermission && it.purpose == PermissionPurpose.RECORDINGS } }
+        h.viewModel.onPermissionResult(PermissionPurpose.RECORDINGS, granted = false)
+        assertEquals(false, h.recordings.lastPermissionResult)
+        awaitUntil { effects.any { it is UiEffect.Message } }
     }
 }

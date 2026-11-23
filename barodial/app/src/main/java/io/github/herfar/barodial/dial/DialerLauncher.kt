@@ -15,6 +15,7 @@ import android.telecom.TelecomManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
+import androidx.core.net.toUri
 import io.github.herfar.barodial.core.phone.KoreanPhoneNumbers
 
 /** 현재 기본 전화 앱 정보 (TelecomManager 기준, 패키지명을 추측하지 않는다). */
@@ -99,6 +100,10 @@ class DialerLauncher(context: Context) {
 
     /** 통화기록 화면을 직접 처리하는 앱이 있는지 (패키지 가시성은 매니페스트 queries 로 선언) */
     fun canOpenCallLogScreen(): Boolean = resolves(callLogIntents().first())
+
+    /** 통화 녹음을 다른 앱(삼성 녹음기·음악 앱 등)으로 열기 */
+    fun audioIntent(uri: String): Intent =
+        Intent(Intent.ACTION_VIEW).setDataAndType(uri.toUri(), "audio/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
     fun appDetailsSettingsIntent(): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", appContext.packageName, null))

@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.herfar.barodial.BaroDialApplication
 import io.github.herfar.barodial.R
+import io.github.herfar.barodial.core.hangul.SearchText
 import io.github.herfar.barodial.core.phone.KoreanPhoneNumbers
 import io.github.herfar.barodial.data.calllog.CallFilter
 import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
@@ -34,6 +35,10 @@ import io.github.herfar.barodial.data.favorites.FavoritesRepository
 import io.github.herfar.barodial.data.history.HistoryEntry
 import io.github.herfar.barodial.data.history.HistoryKind
 import io.github.herfar.barodial.data.history.SearchHistoryRepository
+import io.github.herfar.barodial.data.recordings.CallRecording
+import io.github.herfar.barodial.data.recordings.CallRecordingsRepository
+import io.github.herfar.barodial.data.recordings.RecordingMatcher
+import io.github.herfar.barodial.data.recordings.RecordingsAvailability
 import io.github.herfar.barodial.data.search.ContactSearchEngine
 import io.github.herfar.barodial.data.settings.AppSettings
 import io.github.herfar.barodial.data.settings.SettingsRepository
@@ -56,6 +61,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.min
 
 /**
@@ -68,6 +74,7 @@ class MainViewModel(
     private val historyRepository: SearchHistoryRepository,
     private val settingsRepository: SettingsRepository,
     private val callHistoryRepository: CallHistoryRepository,
+    private val recordingsRepository: CallRecordingsRepository,
     private val dialer: DialerLauncher,
     private val engine: ContactSearchEngine,
     private val savedState: SavedStateHandle,
@@ -81,6 +88,8 @@ class MainViewModel(
     val callHistoryAvailability: StateFlow<CallHistoryAvailability> = callHistoryRepository.availability
     val callLogEntries: StateFlow<List<CallLogEntry>> = callHistoryRepository.entries
     val callHistoryPermission: String? get() = callHistoryRepository.requiredPermission
+    val recordingsAvailability: StateFlow<RecordingsAvailability> = recordingsRepository.availability
+    val recordings: StateFlow<List<CallRecording>> = recordingsRepository.recordings
 
     val favoriteEntries: StateFlow<List<FavoriteEntry>> =
         favoritesRepository.favorites.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -129,6 +138,10 @@ class MainViewModel(
     var canOpenCallLogScreen by mutableStateOf(false)
         private set
 
+    /** 재생 창에 열린 통화 녹음 */
+    var playing by mutableStateOf<PlayingRecording?>(null)
+        private set
+
     private var pendingDirectCallEnable = false
     private var destinationChosen = savedState.get<String>(KEY_DEST) != null
 
@@ -145,8 +158,9 @@ class MainViewModel(
         combine(favoriteEntries, historyEntries) { f, h -> f to h },
         callLogEntries,
     ) { q, cs, (favorites, history), calls -> SearchInputs(q, cs, favorites, history, calls) }
-        .mapLatest { buildSearch(it) }
-        .flowOn(Dispatchers.Default)
+        // 검색어(snapshotFlow)는 입력이 일어나는 메인 스레드에서 관찰하고, 검색 계산만 백그라운드에서 한다.
+        // (관찰을 백그라운드에서 시작하면 시작 직후의 입력 변경을 놓칠 수 있다)
+        .mapLatest { input -> withContext(Dispatchers.Default) { buildSearch(input) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SearchUiState())
 
     val homeUi: StateFlow<HomeUiState> = combine(contactsState, favoriteEntries, historyEntries, settings) { cs, f, h, s ->
@@ -171,14 +185,8 @@ class MainViewModel(
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, DialerUiState())
 
-    val recentsUi: StateFlow<RecentsUiState> = combine(callLogEntries, _callFilter, contactsState) { entries, filter, cs ->
-        val ready = cs as? ContactsState.Ready
-        val filtered = CallLogGrouping.filter(entries, filter)
-        val names = HashMap<String, Contact>()
-        if (ready != null) {
-            for (e in filtered) ready.findByNumber(e.nationalDigits)?.let { names[e.nationalDigits] = it }
-        }
-        RecentsUiState(CallLogGrouping.groupByDay(filtered), names)
+    val recentsUi: StateFlow<RecentsUiState> = combine(callLogEntries, _callFilter, contactsState, recordings) { entries, filter, cs, recs ->
+        buildRecents(entries, filter, cs, recs)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, RecentsUiState())
 
     val favoriteKeys: StateFlow<Set<String>> = favoriteEntries
@@ -199,6 +207,7 @@ class MainViewModel(
     fun onResume() {
         contactsRepository.refreshIfNeeded()
         callHistoryRepository.refresh()
+        recordingsRepository.refresh()
         dialerInfo = dialer.defaultDialerInfo()
         canOpenCallLogScreen = dialer.canOpenCallLogScreen()
         if (settings.value.directCall && !dialer.hasCallPermission()) {
@@ -217,13 +226,23 @@ class MainViewModel(
         savedState[KEY_DEST] = d.name
     }
 
+    /** 좌우 스와이프로 탭이 바뀌었을 때 */
+    fun onPageSettled(d: Destination) {
+        if (d == destination) return
+        destinationChosen = true
+        favoritesEditMode = false
+        destination = d
+        savedState[KEY_DEST] = d.name
+    }
+
     val canHandleBack: Boolean
-        get() = numberPicker != null || searchActive || backStack.isNotEmpty() || favoritesEditMode ||
+        get() = playing != null || numberPicker != null || searchActive || backStack.isNotEmpty() || favoritesEditMode ||
             destination != settings.value.startTab.toDestination()
 
     /** @return 처리했으면 true. false 면 앱을 닫는다. */
     fun onBack(): Boolean {
         when {
+            playing != null -> playing = null
             numberPicker != null -> numberPicker = null
             backStack.isNotEmpty() -> backStack.removeAt(backStack.lastIndex)
             searchActive -> exitSearch()
@@ -259,10 +278,15 @@ class MainViewModel(
         push(Route.Detail(contact.lookupKey, contact.id))
     }
 
+    /**
+     * 키패드로 이동한다. 접힌 화면에서는 홈 탭(다이얼), 펼친 화면에서는 오른쪽 창의 키패드가 보인다.
+     */
     fun openKeypad(prefill: String? = null) {
         if (prefill != null) setDialDigits(KoreanPhoneNumbers.sanitizeDialInput(prefill))
+        if (searchActive) exitSearch()
         sendEffect(UiEffect.HideKeyboard)
-        push(Route.Keypad)
+        backStack.clear()
+        selectDestination(Destination.HOME)
     }
 
     /** 펼친 화면: 오른쪽 창을 키패드로 되돌린다. */
@@ -416,16 +440,7 @@ class MainViewModel(
                 .take(MAX_FREQUENT)
                 .toList()
         }
-        val recent = history.asSequence()
-            .mapNotNull { h ->
-                when (h.kind) {
-                    HistoryKind.CONTACT -> ready?.find(h.key, h.contactId)?.let { RecentItem(h, it) }
-                    HistoryKind.NUMBER -> RecentItem(h, ready?.findByNumber(h.key))
-                }
-            }
-            .take(MAX_RECENT_ON_HOME)
-            .toList()
-        return HomeUiState(allFavorites, frequent, recent)
+        return HomeUiState(allFavorites, frequent)
     }
 
     fun isFavorite(contact: Contact): Boolean =
@@ -508,7 +523,8 @@ class MainViewModel(
             }
         }
         if (searchActive && s.clearSearchAfterCall) exitSearch()
-        if (direct && backStack.lastOrNull() == Route.Keypad) setDialDigits("")
+        // 바로 발신했다면 키패드 입력을 비운다 (다이얼 화면을 거치는 경우는 돌아왔을 때 다시 쓸 수 있게 둔다)
+        if (direct && number == _dialDigits.value) setDialDigits("")
     }
 
     fun hasCallPermission(): Boolean = dialer.hasCallPermission()
@@ -590,6 +606,44 @@ class MainViewModel(
         sendEffect(UiEffect.RequestPermission(permission, PermissionPurpose.CALL_LOG))
     }
 
+    // ---------------------------------------------------------------- 통화 녹음
+
+    private fun buildRecents(entries: List<CallLogEntry>, filter: CallFilter, cs: ContactsState, recs: List<CallRecording>): RecentsUiState {
+        val ready = cs as? ContactsState.Ready
+        val byName = ready?.contacts?.associateBy { SearchText.normalize(it.displayName) }.orEmpty()
+        val matched = RecordingMatcher.match(entries, recs) { call ->
+            ready?.findByNumber(call.nationalDigits)?.displayName ?: call.cachedName
+        }
+        val filtered = if (filter == CallFilter.RECORDED) entries.filter { it.id in matched } else CallLogGrouping.filter(entries, filter)
+        val names = HashMap<String, Contact>()
+        if (ready != null) {
+            for (e in filtered) ready.findByNumber(e.nationalDigits)?.let { names[e.nationalDigits] = it }
+        }
+        val items = recs.map { r ->
+            val contact = r.labelDigits?.let { ready?.findByNumber(it) } ?: r.label?.let { byName[SearchText.normalize(it)] }
+            RecordingItem(r, contact)
+        }
+        return RecentsUiState(CallLogGrouping.groupByDay(filtered), names, matched, items)
+    }
+
+    /** 연락처 한 명의 통화 녹음 (파일 이름 또는 통화기록 연결로 찾음) */
+    fun recordingsFor(contact: Contact): List<CallRecording> =
+        RecordingMatcher.forContact(contact, recordings.value, recentsUi.value.recordingByCallId, callLogEntries.value)
+
+    fun playRecording(recording: CallRecording, title: String) {
+        playing = PlayingRecording(recording, title)
+    }
+
+    fun closePlayer() {
+        playing = null
+    }
+
+    fun openRecordingExternally(recording: CallRecording) =
+        sendEffect(UiEffect.Launch(listOf(dialer.audioIntent(recording.uri)), R.string.error_no_player))
+
+    fun requestRecordingsPermission() =
+        sendEffect(UiEffect.RequestPermission(recordingsRepository.requiredPermission, PermissionPurpose.RECORDINGS))
+
     // ---------------------------------------------------------------- 설정 / 권한
 
     fun updateSettings(transform: (AppSettings) -> AppSettings) {
@@ -622,6 +676,10 @@ class MainViewModel(
                 pendingDirectCallEnable = false
             }
             PermissionPurpose.CALL_LOG -> callHistoryRepository.onPermissionResult(granted)
+            PermissionPurpose.RECORDINGS -> {
+                recordingsRepository.onPermissionResult(granted)
+                if (!granted) sendEffect(UiEffect.Message(R.string.message_recordings_denied))
+            }
         }
     }
 
@@ -635,7 +693,6 @@ class MainViewModel(
         private const val KEY_DIAL = "dial"
         private const val KEY_SEARCH_ACTIVE = "searchActive"
         private const val MAX_RECENT_IN_SEARCH = 30
-        private const val MAX_RECENT_ON_HOME = 10
         private const val MAX_FREQUENT = 5
         private const val MAX_DIAL_LENGTH = 40
 
@@ -655,6 +712,7 @@ class MainViewModel(
                     historyRepository = c.searchHistoryRepository,
                     settingsRepository = c.settingsRepository,
                     callHistoryRepository = c.callHistoryRepository,
+                    recordingsRepository = c.callRecordingsRepository,
                     dialer = c.dialerLauncher,
                     engine = c.searchEngine,
                     savedState = createSavedStateHandle(),

@@ -55,11 +55,13 @@ import io.github.herfar.barodial.data.calllog.CallLogGrouping
 import io.github.herfar.barodial.data.calllog.CallType
 import io.github.herfar.barodial.data.contacts.Contact
 import io.github.herfar.barodial.data.contacts.PhoneNumber
+import io.github.herfar.barodial.data.recordings.CallRecording
 import io.github.herfar.barodial.ui.components.AppTopBar
 import io.github.herfar.barodial.ui.components.CallIconButton
 import io.github.herfar.barodial.ui.components.ContactAvatar
 import io.github.herfar.barodial.ui.components.EmptyMessage
 import io.github.herfar.barodial.ui.components.PhoneDisplay
+import io.github.herfar.barodial.ui.components.RecordingRow
 import io.github.herfar.barodial.ui.components.SectionHeader
 import io.github.herfar.barodial.ui.components.TimeDisplay
 import io.github.herfar.barodial.ui.components.phoneTypeLabel
@@ -76,6 +78,7 @@ class DetailActions(
     val viewInContacts: (Contact) -> Unit,
     val setPreferred: (Contact, PhoneNumber?) -> Unit,
     val numberCopied: () -> Unit,
+    val playRecording: (CallRecording, String) -> Unit,
 )
 
 @Composable
@@ -87,6 +90,7 @@ fun ContactDetailScreen(
     navigationIcon: ImageVector,
     actions: DetailActions,
     modifier: Modifier = Modifier,
+    recordings: List<CallRecording> = emptyList(),
     applyStatusBarInsets: Boolean = true,
 ) {
     Surface(modifier = modifier.fillMaxSize().testTag("contactDetail"), color = MaterialTheme.colorScheme.background) {
@@ -115,7 +119,7 @@ fun ContactDetailScreen(
                 EmptyMessage(stringResource(R.string.detail_not_found), icon = AppIcons.Person)
                 return@Column
             }
-            DetailBody(contact, isFavorite, preferredDigits, calls, actions)
+            DetailBody(contact, isFavorite, preferredDigits, calls, recordings, actions)
         }
     }
 }
@@ -126,6 +130,7 @@ private fun DetailBody(
     isFavorite: Boolean,
     preferredDigits: String?,
     calls: List<CallLogEntry>?,
+    recordings: List<CallRecording>,
     actions: DetailActions,
 ) {
     LazyColumn(
@@ -212,6 +217,23 @@ private fun DetailBody(
                 item("callsEmpty") { EmptyMessage(stringResource(R.string.detail_call_history_empty)) }
             }
             items(calls.take(30), key = { "call_${it.id}" }) { call -> CallEntryRow(call) }
+        }
+        if (recordings.isNotEmpty()) {
+            item("recordingsHeader") {
+                SectionHeader(
+                    stringResource(R.string.detail_recordings_title, recordings.size),
+                    modifier = Modifier.widthIn(max = 640.dp),
+                )
+            }
+            items(recordings.take(50), key = { "rec_${it.id}" }) { rec ->
+                RecordingRow(
+                    title = TimeDisplay.dateTime(rec.startMillis),
+                    subtitle = stringResource(R.string.recording_length, TimeDisplay.duration(rec.durationMillis / 1000)),
+                    recording = rec,
+                    onPlay = { actions.playRecording(rec, contact.displayName) },
+                    modifier = Modifier.widthIn(max = 640.dp),
+                )
+            }
         }
         item("system") {
             Column(

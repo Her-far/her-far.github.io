@@ -1,10 +1,20 @@
 package io.github.herfar.barodial.ui.dialer
 
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
+import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Build
+import android.provider.Settings
 import android.view.HapticFeedbackConstants
+import android.view.textclassifier.TextClassifier
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,22 +36,35 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +97,7 @@ class DialerActions(
     val openContact: (Contact) -> Unit,
     val callContact: (Contact, PhoneNumber?) -> Unit,
     val paste: (String) -> Unit,
+    val numberCopied: () -> Unit,
 )
 
 private data class Key(val digit: Char, val letters: String, val longPress: Char? = null)
@@ -84,9 +109,19 @@ private val KEYS = listOf(
     listOf(Key('*', ""), Key('0', "+", longPress = '+'), Key('#', "")),
 )
 
+/** 화면 높이에 맞춘 키 높이 (너무 작거나 크지 않게) */
+fun dialKeyHeightFor(availableHeight: Dp, reservedAbove: Dp): Dp =
+    ((availableHeight - reservedAbove - 140.dp) / 5f).coerceIn(46.dp, 72.dp)
+
 /**
  * 숫자 키패드. 큰 버튼, 넉넉한 간격, 입력 중 일치 연락처 표시.
- * 화면 높이에 맞춰 버튼 높이를 조절하고, 펼친 화면에서도 버튼이 지나치게 커지지 않도록 폭을 제한한다.
+ *
+ * - 번호 옆 ⋮ 메뉴: 붙여넣기, 번호 복사, 연락처에 추가, 문자, 2초 대기(,)·대기(;) 추가
+ * - 클립보드에 복사한 텍스트가 있으면 [붙여넣기] 버튼을 보여 준다 (내용은 누를 때만 읽는다)
+ * - 키를 누르면 진동과, 시스템 설정을 따르는 키패드 톤
+ *
+ * @param keyHeight 지정하지 않으면 화면 높이에 맞춰 정한다
+ * @param emptyContent 번호를 입력하기 전, 일치 연락처 자리에 보여 줄 내용 (홈: 즐겨찾기)
  */
 @Composable
 fun DialerPane(
@@ -94,27 +129,27 @@ fun DialerPane(
     haptics: Boolean,
     actions: DialerActions,
     modifier: Modifier = Modifier,
+    keyHeight: Dp? = null,
+    applyBottomInsets: Boolean = true,
     topBar: @Composable () -> Unit = {},
+    emptyContent: @Composable BoxScope.() -> Unit = { DialerHint() },
 ) {
     val view = LocalView.current
-    fun feedback() {
+    val tones = rememberDialTones()
+    fun feedback(c: Char? = null) {
         if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (c != null) tones.play(c)
     }
+    val clipboardHasText = rememberClipboardHasText()
 
     BoxWithConstraints(modifier.fillMaxSize().testTag("dialerPane")) {
-        val keyHeight = ((maxHeight * 0.46f) / 5f).coerceIn(44.dp, 72.dp)
-        val gap = if (keyHeight < 56.dp) 6.dp else 10.dp
+        val kh = keyHeight ?: dialKeyHeightFor(maxHeight, 64.dp)
+        val gap = if (kh < 56.dp) 6.dp else 10.dp
         Column(Modifier.fillMaxSize()) {
             topBar()
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (state.digits.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.dialer_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(24.dp),
-                    )
+                    emptyContent()
                 } else {
                     LazyColumn(reverseLayout = true, modifier = Modifier.fillMaxSize().testTag("dialerMatches")) {
                         items(state.matches, key = { it.contact.id }) { match ->
@@ -135,8 +170,14 @@ fun DialerPane(
                         }
                     }
                 }
+                if (state.digits.isEmpty() && clipboardHasText) {
+                    PasteChip(
+                        onPaste = actions.paste,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                    )
+                }
             }
-            NumberDisplay(state, actions, onFeedback = ::feedback)
+            NumberDisplay(state, actions, onFeedback = { feedback() })
             Column(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -150,9 +191,9 @@ fun DialerPane(
                         for (key in row) {
                             DialKey(
                                 key = key,
-                                height = keyHeight,
+                                height = kh,
                                 onPress = {
-                                    feedback()
+                                    feedback(key.digit)
                                     actions.digit(key.digit)
                                 },
                                 onLongPress = key.longPress?.let { lp ->
@@ -166,53 +207,150 @@ fun DialerPane(
                         }
                     }
                 }
-                ActionRow(state, keyHeight, actions, onFeedback = ::feedback)
+                ActionRow(state, kh, actions, onFeedback = { feedback() })
             }
-            Spacer(Modifier.height(12.dp))
-            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            Spacer(Modifier.height(10.dp))
+            if (applyBottomInsets) Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         }
     }
 }
 
 @Composable
-private fun NumberDisplay(state: DialerUiState, actions: DialerActions, onFeedback: () -> Unit) {
+private fun BoxScope.DialerHint() {
+    Text(
+        text = stringResource(R.string.dialer_hint),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+    )
+}
+
+/** 클립보드에서 텍스트를 읽어 키패드에 붙여넣는다. */
+@Composable
+private fun rememberPaste(onPaste: (String) -> Unit): () -> Unit {
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    return {
+        scope.launch {
+            val text = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
+                ?.getItemAt(0)?.coerceToText(context)?.toString()
+            onPaste(text.orEmpty())
+        }
+    }
+}
+
+@Composable
+private fun PasteChip(onPaste: (String) -> Unit, modifier: Modifier = Modifier) {
+    val paste = rememberPaste(onPaste)
+    AssistChip(
+        onClick = paste,
+        label = { Text(stringResource(R.string.dialer_paste_copied)) },
+        leadingIcon = { Icon(AppIcons.ContentPaste, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize)) },
+        modifier = modifier.testTag("pasteChip"),
+    )
+}
+
+@Composable
+private fun NumberDisplay(state: DialerUiState, actions: DialerActions, onFeedback: () -> Unit) {
+    val paste = rememberPaste(actions.paste)
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    var menuOpen by remember { mutableStateOf(false) }
     val pasteLabel = stringResource(R.string.dialer_paste)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 72.dp)
-            .combinedClickable(
-                onLongClickLabel = pasteLabel,
-                onClick = {},
-                onLongClick = {
-                    onFeedback()
-                    scope.launch {
-                        val text = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
-                            ?.getItemAt(0)?.coerceToText(context)?.toString()
-                        if (text != null) actions.paste(text)
-                    }
-                },
-            )
-            .semantics { liveRegion = LiveRegionMode.Polite }
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center,
+    val hasDigits = state.digits.isNotEmpty()
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(
-            text = state.formatted,
-            style = TextStyle(
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurface,
-                letterSpacing = 0.5.sp,
-            ),
-            maxLines = 1,
-            autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 38.sp, stepSize = 2.sp),
-            modifier = Modifier.fillMaxWidth().testTag("dialDisplay"),
-        )
+        Spacer(Modifier.width(48.dp))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 64.dp)
+                .combinedClickable(
+                    onLongClickLabel = pasteLabel,
+                    onClick = {},
+                    onLongClick = {
+                        onFeedback()
+                        menuOpen = true
+                    },
+                )
+                .semantics { liveRegion = LiveRegionMode.Polite },
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicText(
+                text = state.formatted,
+                style = TextStyle(
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = 0.5.sp,
+                ),
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 38.sp, stepSize = 2.sp),
+                modifier = Modifier.fillMaxWidth().testTag("dialDisplay"),
+            )
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("dialMenu")) {
+                Icon(AppIcons.MoreVert, contentDescription = stringResource(R.string.dialer_menu))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.dialer_paste)) },
+                    leadingIcon = { Icon(AppIcons.ContentPaste, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        paste()
+                    },
+                    modifier = Modifier.testTag("dialMenuPaste"),
+                )
+                if (hasDigits) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_copy_number)) },
+                        leadingIcon = { Icon(AppIcons.ContentCopy, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("phone", state.digits))) }
+                            actions.numberCopied()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_add_contact)) },
+                        leadingIcon = { Icon(AppIcons.PersonAdd, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            actions.addContact(state.digits)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_sms)) },
+                        leadingIcon = { Icon(AppIcons.Message, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            actions.sms(state.digits)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.dialer_add_pause)) },
+                        onClick = {
+                            menuOpen = false
+                            actions.digit(',')
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.dialer_add_wait)) },
+                        onClick = {
+                            menuOpen = false
+                            actions.digit(';')
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -318,4 +456,74 @@ private fun ActionRow(state: DialerUiState, keyHeight: Dp, actions: DialerAction
             }
         }
     }
+}
+
+// ------------------------------------------------------------------ 클립보드 · 키패드 톤
+
+/**
+ * 클립보드에 텍스트가 있는지 (내용을 읽지 않고 설명만 확인하므로 Android 의 "클립보드 접근" 알림이 뜨지 않는다).
+ * Android 12+ 에서 시스템이 분류를 마쳤다면 전화번호일 가능성이 있는 경우에만 true.
+ */
+@Composable
+private fun rememberClipboardHasText(): Boolean {
+    val context = LocalContext.current
+    val manager = remember(context) { context.getSystemService(ClipboardManager::class.java) }
+    val focused = LocalWindowInfo.current.isWindowFocused
+    var hasText by remember { mutableStateOf(false) }
+    fun check() {
+        hasText = try {
+            val d = manager?.primaryClipDescription
+            d != null && (d.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || d.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML)) && looksLikePhone(d)
+        } catch (e: Exception) {
+            false
+        }
+    }
+    LaunchedEffect(focused) { if (focused) check() }
+    DisposableEffect(manager) {
+        val listener = ClipboardManager.OnPrimaryClipChangedListener { check() }
+        manager?.addPrimaryClipChangedListener(listener)
+        onDispose { manager?.removePrimaryClipChangedListener(listener) }
+    }
+    return hasText
+}
+
+private fun looksLikePhone(d: ClipDescription): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+    if (d.classificationStatus != ClipDescription.CLASSIFICATION_COMPLETE) return true
+    return d.getConfidenceScore(TextClassifier.TYPE_PHONE) > 0.2f
+}
+
+/** 키패드 톤. 시스템 설정 "다이얼 키패드 톤"이 켜져 있고 벨소리 모드일 때만 소리를 낸다. */
+private class DialTones(private val context: Context) {
+    private val generator: ToneGenerator? = try {
+        ToneGenerator(AudioManager.STREAM_DTMF, 70)
+    } catch (e: RuntimeException) {
+        null
+    }
+
+    private fun enabled(): Boolean {
+        val audio = context.getSystemService(AudioManager::class.java) ?: return false
+        if (audio.ringerMode != AudioManager.RINGER_MODE_NORMAL) return false
+        return Settings.System.getInt(context.contentResolver, Settings.System.DTMF_TONE_WHEN_DIALING, 1) == 1
+    }
+
+    fun play(c: Char) {
+        val tone = when (c) {
+            in '0'..'9' -> ToneGenerator.TONE_DTMF_0 + (c - '0')
+            '*' -> ToneGenerator.TONE_DTMF_S
+            '#' -> ToneGenerator.TONE_DTMF_P
+            else -> return
+        }
+        if (enabled()) generator?.startTone(tone, 120)
+    }
+
+    fun release() = generator?.release()
+}
+
+@Composable
+private fun rememberDialTones(): DialTones {
+    val context = LocalContext.current
+    val tones = remember(context) { DialTones(context.applicationContext) }
+    DisposableEffect(tones) { onDispose { tones.release() } }
+    return tones
 }

@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class CallType { INCOMING, OUTGOING, MISSED, REJECTED, BLOCKED, VOICEMAIL, OTHER }
 
-enum class CallFilter { ALL, MISSED, INCOMING, OUTGOING }
+/** RECORDED: 통화 녹음 파일이 연결된 통화만 (녹음 매칭 결과는 ViewModel 에서 적용) */
+enum class CallFilter { ALL, MISSED, INCOMING, OUTGOING, RECORDED }
 
 /** 통화기록 한 건 (android.provider.CallLog.Calls 한 행). */
 data class CallLogEntry(

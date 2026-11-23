@@ -22,6 +22,7 @@ object CallLogGrouping {
         CallFilter.MISSED -> entries.filter { it.type == CallType.MISSED || it.type == CallType.REJECTED }
         CallFilter.INCOMING -> entries.filter { it.type == CallType.INCOMING }
         CallFilter.OUTGOING -> entries.filter { it.type == CallType.OUTGOING }
+        CallFilter.RECORDED -> entries
     }
 
     /** 최신순 목록을 날짜별로 나누고, 날짜 안에서 연속된 같은 번호·종류를 묶는다. */

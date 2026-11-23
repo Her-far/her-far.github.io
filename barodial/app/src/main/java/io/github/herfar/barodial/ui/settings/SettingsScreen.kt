@@ -47,6 +47,7 @@ import io.github.herfar.barodial.BuildConfig
 import io.github.herfar.barodial.R
 import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
 import io.github.herfar.barodial.data.contacts.ContactsState
+import io.github.herfar.barodial.data.recordings.RecordingsAvailability
 import io.github.herfar.barodial.data.settings.AppSettings
 import io.github.herfar.barodial.data.settings.StartTab
 import io.github.herfar.barodial.data.settings.ThemeMode
@@ -64,6 +65,7 @@ class SettingsActions(
     val requestContacts: () -> Unit,
     val openAppSettings: () -> Unit,
     val openDefaultApps: () -> Unit,
+    val requestRecordings: () -> Unit,
 )
 
 @Composable
@@ -72,6 +74,8 @@ fun SettingsScreen(
     contactsState: ContactsState,
     callPermissionGranted: Boolean,
     callHistory: CallHistoryAvailability,
+    recordings: RecordingsAvailability,
+    recordingCount: Int,
     dialerInfo: DefaultDialerInfo?,
     navigationIcon: ImageVector,
     actions: SettingsActions,
@@ -222,6 +226,22 @@ fun SettingsScreen(
                             },
                         ),
                         onClick = actions.openAppSettings,
+                    )
+                }
+
+                item("permRecordings") {
+                    ActionRow(
+                        title = stringResource(R.string.settings_perm_recordings),
+                        subtitle = when (recordings) {
+                            RecordingsAvailability.Available -> stringResource(R.string.settings_perm_recordings_found, recordingCount)
+                            is RecordingsAvailability.Denied -> stringResource(R.string.settings_perm_denied_tap)
+                            is RecordingsAvailability.PermissionRequired -> stringResource(R.string.settings_perm_recordings_required)
+                        },
+                        onClick = when (recordings) {
+                            is RecordingsAvailability.PermissionRequired -> actions.requestRecordings
+                            else -> actions.openAppSettings
+                        },
+                        modifier = Modifier.testTag("settingsRecordings"),
                     )
                 }
 

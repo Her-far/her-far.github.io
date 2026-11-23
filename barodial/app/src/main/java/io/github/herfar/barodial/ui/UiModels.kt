@@ -6,15 +6,18 @@ import io.github.herfar.barodial.data.calllog.CallDaySection
 import io.github.herfar.barodial.data.calllog.CallLogEntry
 import io.github.herfar.barodial.data.contacts.Contact
 import io.github.herfar.barodial.data.history.HistoryEntry
+import io.github.herfar.barodial.data.recordings.CallRecording
 import io.github.herfar.barodial.data.search.SearchResult
 
-/** 하단 탭 */
-enum class Destination { HOME, CONTACTS, FAVORITES, RECENTS }
+/** 하단 탭 (좌우 스와이프 순서와 같다) */
+enum class Destination { HOME, CONTACTS, RECENTS, FAVORITES }
 
-/** 탭 위에 쌓이는 화면. 접힌 화면에서는 전체 화면, 펼친 화면에서는 오른쪽 창에 표시된다. */
+/**
+ * 탭 위에 쌓이는 화면. 접힌 화면에서는 전체 화면, 펼친 화면에서는 오른쪽 창에 표시된다.
+ * 키패드는 홈 탭(접힘) 또는 오른쪽 창의 기본 화면(펼침)이므로 별도 경로가 없다.
+ */
 sealed interface Route {
     data class Detail(val lookupKey: String, val contactId: Long) : Route
-    data object Keypad : Route
     data object Settings : Route
 }
 
@@ -68,12 +71,9 @@ data class FavoriteItem(
     val fromSystem: Boolean,
 )
 
-data class RecentItem(val entry: HistoryEntry, val contact: Contact?)
-
 data class HomeUiState(
     val favorites: List<FavoriteItem> = emptyList(),
     val frequent: List<Contact> = emptyList(),
-    val recent: List<RecentItem> = emptyList(),
 )
 
 data class FavoritesUiState(
@@ -91,11 +91,21 @@ data class RecentsUiState(
     val sections: List<CallDaySection> = emptyList(),
     /** 국내 숫자 형식 번호 → 연락처 */
     val contactsByNumber: Map<String, Contact> = emptyMap(),
+    /** 통화기록 id → 연결된 통화 녹음 */
+    val recordingByCallId: Map<Long, CallRecording> = emptyMap(),
+    /** 통화 녹음 파일 목록 (최신순, 파일 이름으로 찾은 연락처 포함) */
+    val recordings: List<RecordingItem> = emptyList(),
 )
+
+/** 녹음 파일과, 파일 이름으로 찾은 연락처 */
+data class RecordingItem(val recording: CallRecording, val contact: Contact?)
+
+/** 지금 재생 창에 열린 녹음 */
+data class PlayingRecording(val recording: CallRecording, val title: String)
 
 data class NumberPickerState(val contact: Contact)
 
-enum class PermissionPurpose { CONTACTS, CALL_PHONE, CALL_LOG }
+enum class PermissionPurpose { CONTACTS, CALL_PHONE, CALL_LOG, RECORDINGS }
 
 /** ViewModel → UI 일회성 이벤트 */
 sealed interface UiEffect {

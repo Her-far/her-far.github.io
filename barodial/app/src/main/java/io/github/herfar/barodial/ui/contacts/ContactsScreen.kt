@@ -58,6 +58,7 @@ import io.github.herfar.barodial.ui.components.PhoneDisplay
 import io.github.herfar.barodial.ui.components.asAnnotated
 import io.github.herfar.barodial.ui.icons.AppIcons
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -195,18 +196,30 @@ fun FastScroller(
                 .onSizeChanged { heightPx = it.height }
                 .semantics { contentDescription = description }
                 .pointerInput(labels) {
+                    // 세로로 끌거나 탭하면 초성 이동, 가로로 밀면 손을 떼어 탭 넘김(스와이프)에 양보한다.
                     awaitEachGesture {
-                        val down = awaitFirstDown()
-                        select(down.position.y)
-                        down.consume()
-                        do {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val slop = viewConfiguration.touchSlop
+                        var vertical = false
+                        while (true) {
                             val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            if (change.pressed) {
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                if (!vertical && !change.isConsumed) select(down.position.y) // 탭
+                                break
+                            }
+                            if (!vertical) {
+                                val dx = abs(change.position.x - down.position.x)
+                                val dy = abs(change.position.y - down.position.y)
+                                if (dx > slop && dx > dy) break // 가로 스와이프: 양보
+                                if (change.isConsumed) break
+                                if (dy > slop) vertical = true
+                            }
+                            if (vertical) {
                                 select(change.position.y)
                                 change.consume()
                             }
-                        } while (change.pressed)
+                        }
                         active = null
                     }
                 }
