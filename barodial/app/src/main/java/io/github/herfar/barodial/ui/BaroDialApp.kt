@@ -1,6 +1,7 @@
 package io.github.herfar.barodial.ui
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
@@ -79,6 +80,7 @@ import io.github.herfar.barodial.data.calllog.CallLogGrouping
 import io.github.herfar.barodial.data.contacts.ContactsState
 import io.github.herfar.barodial.dial.DialerLauncher
 import io.github.herfar.barodial.ui.components.AppTopBar
+import io.github.herfar.barodial.ui.components.AddContactSheet
 import io.github.herfar.barodial.ui.components.NumberPickerSheet
 import io.github.herfar.barodial.ui.components.RecordingPlayerSheet
 import io.github.herfar.barodial.ui.components.SearchDock
@@ -134,6 +136,11 @@ fun BaroDialApp(viewModel: MainViewModel, dialerLauncher: DialerLauncher) {
         pendingPermission = null
     }
 
+    // 시스템 연락처 앱의 등록·편집 화면. 같은 작업(task)에서 열리므로 저장·취소 후 이 앱으로 돌아온다.
+    val contactEditorLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        viewModel.onContactEditorClosed(saved = result.resultCode == Activity.RESULT_OK, resultUri = result.data?.data)
+    }
+
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
 
     fun showMessage(text: String) {
@@ -148,6 +155,20 @@ fun BaroDialApp(viewModel: MainViewModel, dialerLauncher: DialerLauncher) {
             when (effect) {
                 is UiEffect.Launch -> {
                     if (!dialerLauncher.launchFirst(context, effect.intents)) showMessage(resources.getString(effect.failureMessage))
+                }
+                is UiEffect.EditContact -> {
+                    val launched = effect.intents.any { intent ->
+                        try {
+                            contactEditorLauncher.launch(intent)
+                            true
+                        } catch (e: ActivityNotFoundException) {
+                            false
+                        }
+                    }
+                    if (!launched) {
+                        viewModel.onContactEditorLaunchFailed()
+                        showMessage(resources.getString(effect.failureMessage))
+                    }
                 }
                 is UiEffect.Message -> showMessage(
                     if (effect.arg != null) resources.getString(effect.message, effect.arg) else resources.getString(effect.message),
@@ -214,6 +235,15 @@ fun BaroDialApp(viewModel: MainViewModel, dialerLauncher: DialerLauncher) {
             contact = picker.contact,
             onPick = { phone, remember -> viewModel.onNumberPicked(picker.contact, phone, remember) },
             onDismiss = viewModel::dismissNumberPicker,
+        )
+    }
+
+    viewModel.addContactNumber?.let { number ->
+        AddContactSheet(
+            number = number,
+            onCreateNew = { viewModel.createContactWithNumber(number) },
+            onAddToExisting = { viewModel.addNumberToExistingContact(number) },
+            onDismiss = viewModel::dismissAddContact,
         )
     }
 

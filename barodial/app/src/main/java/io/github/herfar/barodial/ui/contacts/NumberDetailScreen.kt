@@ -48,7 +48,10 @@ class NumberDetailActions(
     val playRecording: (CallRecording, String) -> Unit,
 )
 
-/** 연락처에 없는 번호의 상세: 번호, 전화·문자·연락처 추가, 통화내역(녹음 ▶), 그 밖의 녹음 */
+/**
+ * 연락처에 없는 번호의 상세: 번호, 전화·문자·연락처 추가, 통화내역(녹음 ▶), 그 밖의 녹음.
+ * '연락처에 추가'는 새 연락처 / 기존 연락처를 고르는 하단 시트를 연다 (MainViewModel.addNumberToContacts).
+ */
 @Composable
 fun NumberDetailScreen(
     number: String,
@@ -116,7 +119,7 @@ fun NumberDetailScreen(
                             onClick = { actions.addContact(number) },
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).testTag("numberDetailAddContact"),
                         )
                     }
                 }

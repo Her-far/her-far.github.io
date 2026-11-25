@@ -94,7 +94,14 @@ class DialerLauncherTest {
         assertTrue(launcher.viewContactIntent(5, "lk5").data.toString().startsWith("content://com.android.contacts/contacts/lookup/lk5"))
         val insert = launcher.insertContactIntent("01012345678")
         assertEquals(Intent.ACTION_INSERT, insert.action)
+        assertEquals(android.provider.ContactsContract.Contacts.CONTENT_TYPE, insert.type)
         assertEquals("01012345678", insert.getStringExtra(android.provider.ContactsContract.Intents.Insert.PHONE))
+        assertTrue(insert.getBooleanExtra(DialerLauncher.EXTRA_FINISH_ON_SAVE, false))
+        val existing = launcher.insertOrEditContactIntent("01012345678")
+        assertEquals(Intent.ACTION_INSERT_OR_EDIT, existing.action)
+        assertEquals(android.provider.ContactsContract.Contacts.CONTENT_ITEM_TYPE, existing.type)
+        assertEquals("01012345678", existing.getStringExtra(android.provider.ContactsContract.Intents.Insert.PHONE))
+        assertTrue(existing.getBooleanExtra(DialerLauncher.EXTRA_FINISH_ON_SAVE, false))
         assertEquals("smsto:01012345678", launcher.smsIntent("01012345678").data.toString())
     }
 }

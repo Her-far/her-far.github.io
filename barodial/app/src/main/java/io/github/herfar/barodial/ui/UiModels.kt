@@ -118,6 +118,13 @@ sealed interface UiEffect {
     /** 후보 인텐트를 순서대로 실행해 처음 성공한 것을 쓴다. 모두 실패하면 [failureMessage] 표시 */
     data class Launch(val intents: List<Intent>, @param:StringRes val failureMessage: Int) : UiEffect
 
+    /**
+     * 시스템 연락처 앱의 등록·편집 화면을 결과를 받는 방식으로 연다.
+     * 저장하거나 취소하고 돌아오면 [MainViewModel.onContactEditorClosed] 가 불린다.
+     * 후보 인텐트를 순서대로 시도하고, 모두 실패하면 [failureMessage] 를 보여 준다.
+     */
+    data class EditContact(val intents: List<Intent>, @param:StringRes val failureMessage: Int) : UiEffect
+
     data class Message(@param:StringRes val message: Int, val arg: String? = null) : UiEffect
 
     data class RequestPermission(val permission: String, val purpose: PermissionPurpose) : UiEffect

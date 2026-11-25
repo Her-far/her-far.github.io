@@ -22,6 +22,12 @@
     <string name="action_sms_target">%1$s 문자 보내기</string>
     <string name="action_add_contact">연락처에 추가</string>
     <string name="action_new_contact">새 연락처</string>
+    <string name="add_contact_sheet_title">연락처에 추가</string>
+    <string name="add_contact_new">새 연락처 만들기</string>
+    <string name="add_contact_new_desc">이 번호로 새 연락처를 등록합니다</string>
+    <string name="add_contact_existing">기존 연락처에 추가</string>
+    <string name="add_contact_existing_desc">저장된 연락처를 골라 이 번호를 추가합니다</string>
+    <string name="message_contact_saved">%1$s 연락처에 저장했습니다</string>
     <string name="action_back">뒤로</string>
     <string name="action_close">닫기</string>
     <string name="action_cancel">취소</string>

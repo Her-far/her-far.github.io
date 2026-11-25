@@ -20,11 +20,15 @@
 |---|---|---|---|
 | ![통화기록 녹음](docs/screenshots/folded_13_calllog_recordings.png) | ![상세 녹음](docs/screenshots/folded_14_detail_recordings.png) | ![번호 상세](docs/screenshots/folded_15_number_detail.png) | ![진단](docs/screenshots/folded_16_recording_diagnostics.png) |
 
+| 연락처에 추가: 새 연락처 / 기존 연락처 |
+|---|
+| ![연락처에 추가](docs/screenshots/folded_17_add_contact_sheet.png) |
+
 펼친 화면(Galaxy Z Fold 내부 화면): 왼쪽은 같은 목록과 하단 검색창, 오른쪽은 키패드 또는 연락처 상세.
 
-| 펼침: 홈 + 키패드 | 펼침: 연락처 + 상세 | 다크 모드 검색 |
-|---|---|---|
-| ![펼침 홈](docs/screenshots/unfolded_01_home_keypad.png) | ![펼침 상세](docs/screenshots/unfolded_02_contacts_detail.png) | ![다크](docs/screenshots/folded_dark_02_search.png) |
+| 펼침: 홈 + 키패드 | 펼침: 연락처 + 상세 | 다크 모드 검색 | 펼침: 연락처에 추가 |
+|---|---|---|---|
+| ![펼침 홈](docs/screenshots/unfolded_01_home_keypad.png) | ![펼침 상세](docs/screenshots/unfolded_02_contacts_detail.png) | ![다크](docs/screenshots/folded_dark_02_search.png) | ![펼침 연락처에 추가](docs/screenshots/unfolded_04_add_contact_sheet.png) |
 
 > 스크린샷은 테스트 전용 예시 연락처로 Robolectric 테스트에서 자동 생성한 것입니다 (`ScreenshotTest`). 앱 본체에는 예시 데이터가 전혀 들어 있지 않으며 실제 기기의 연락처만 읽습니다.
 
@@ -36,7 +40,7 @@
 
 | 파일 | 설명 |
 |---|---|
-| [`dist/barodial-1.3.0.apk`](dist/barodial-1.3.0.apk) | 앱 전체 (약 3MB). 1.3.0부터 APK가 하나로 합쳐졌습니다 |
+| [`dist/barodial-1.3.1.apk`](dist/barodial-1.3.1.apk) | 앱 전체 (약 3MB). 1.3.0부터 APK가 하나로 합쳐졌습니다 |
 
 설치 방법에 따라 **최근기록(통화기록)** 동작만 달라집니다.
 
@@ -46,7 +50,7 @@
 | 휴대폰에서 APK 파일로 설치 | Android가 통화기록 권한을 막을 수 있습니다. 막히면 이유를 안내하고 삼성 전화의 기록 화면으로 보내 줍니다. 나머지 기능(검색·다이얼·연락처·즐겨찾기·녹음 목록)은 그대로 동작합니다 |
 
 > **업데이트도 adb로 설치하세요** (`adb install -r …`). 휴대폰에서 파일로 덮어쓰면 통화기록 권한이 다시 막힐 수 있습니다.
-> 1.2.0 이하의 기본판·실험판 어느 쪽을 쓰고 있었든 1.3.0으로 덮어쓰기 설치됩니다 (같은 앱, 같은 서명 키 `keystore/debug.keystore`). 즐겨찾기·설정은 유지됩니다.
+> 1.2.0 이하의 기본판·실험판, 1.3.0 어느 것을 쓰고 있었든 1.3.1로 덮어쓰기 설치됩니다 (같은 앱, 같은 서명 키 `keystore/debug.keystore`). 즐겨찾기·설정은 유지됩니다.
 
 ### 휴대폰에서 직접 설치
 
@@ -67,7 +71,7 @@
 ```bat
 cd C:\platform-tools
 adb devices
-adb install -r "%USERPROFILE%\Downloads\barodial-1.3.0.apk"
+adb install -r "%USERPROFILE%\Downloads\barodial-1.3.1.apk"
 ```
 
 - `adb devices`에 `기기번호  device`가 보이면 정상입니다 (`unauthorized`면 폰의 허용 창 확인).
@@ -255,6 +259,18 @@ gradlew.bat assembleDebug
 **연락처에 없는 번호**
 - 최근기록에서 연락처에 없는 번호를 누르면 **번호 상세**가 열립니다: 전화·문자·연락처 추가, 그 번호의 통화내역(녹음 ▶).
 
+**연락처에 추가 (1.3.1)**
+- 번호 상세, 키패드(＋버튼·⋮ 메뉴), 검색 결과의 **연락처에 추가**를 누르면 하단 시트가 뜹니다.
+  - **새 연락처 만들기**: `Intent.ACTION_INSERT` + `ContactsContract.Contacts.CONTENT_TYPE`으로 시스템 연락처 등록 화면을 열고, `ContactsContract.Intents.Insert.PHONE`으로 번호를 미리 넣습니다.
+  - **기존 연락처에 추가**: `Intent.ACTION_INSERT_OR_EDIT`로 연락처 앱의 선택 화면을 열고, 고른 연락처의 편집 화면에 번호를 넘깁니다. (이 화면을 처리하는 앱이 없으면 새 연락처 화면으로)
+- 번호는 국내 형식(010-1234-5678)으로 넘깁니다. 키패드에서 숫자만 눌렀어도 하이픈이 들어간 형태로 저장됩니다.
+- 연락처 화면은 결과를 받는 방식(`ActivityResultContracts.StartActivityForResult`)으로 같은 작업 안에서 열고, `finishActivityOnSaveCompleted`를 넘겨 **저장하면 바로 이 앱으로 돌아옵니다.** 취소하거나 뒤로 가도 이 앱으로 돌아옵니다.
+- 돌아오면 연락처를 다시 읽습니다. 저장된 연락처를 찾으면 **번호 상세 자리를 새 연락처 상세로 바꾸고** "○○ 연락처에 저장했습니다"를 보여 줍니다. 연락처 탭 목록과 검색에도 바로 나옵니다.
+  - 연락처 앱이 저장된 연락처 주소를 돌려주면 그것으로 찾고, 없으면 전화번호로 찾습니다.
+  - 취소하면 번호 상세가 그대로 남습니다. 이미 저장돼 있던 번호에서 취소하면 다른 화면으로 넘어가지 않습니다.
+- 연락처를 직접 DB에 쓰지 않으므로 `WRITE_CONTACTS` 권한이 없습니다. 삼성 전화(기본 전화 앱)와 통화 스크리닝에는 영향이 없습니다.
+- 접힌 화면에서는 아래에서 올라오고, 펼친 화면에서는 가운데에 최대 640dp 너비로 뜹니다. 시트가 열린 채 접거나 펼쳐도 시트와 번호가 유지됩니다.
+
 **연락처 상세**
 - 전화·문자·즐겨찾기 큰 버튼, 여러 번호 각각 발신·문자
 - 번호를 길게 누르면 복사하거나 "이 번호로 바로 걸기"로 지정할 수 있습니다.
@@ -337,7 +353,7 @@ gradlew.bat assembleDebug
 | `assembleDebug` | ✅ 성공 |
 | `assembleRelease` (R8 축소) | ✅ 성공 (각 약 3MB) |
 | Android Lint | ✅ 오류 0 (경고는 "더 새 버전 있음"류) |
-| 단위·UI 테스트 (`testDebugUnitTest`) | ✅ 118개 통과 (통화기록 Provider 읽기 테스트 포함) |
+| 단위·UI 테스트 (`testDebugUnitTest`) | ✅ 134개 통과 (통화기록 Provider 읽기, 연락처에 추가 흐름 포함) |
 
 테스트 범위:
 
@@ -354,6 +370,7 @@ gradlew.bat assembleDebug
 - **ViewModel**
   - 검색, 발신 기록, 번호 선택·기억, 원터치 발신 권한·긴급번호, 키패드 재발신
   - 뒤로가기 순서, 즐겨찾기, 권한 거부 시 동작
+  - 연락처에 추가: 시트를 먼저 띄움, 저장 결과 주소·번호로 새 연락처 찾기, 취소·시간 초과 시 화면 유지
 - **Compose UI (Robolectric)**
   - 모든 탭에서 검색창 위치 동일, 초성 검색 → 발신 인텐트
   - 키패드 입력·지우기·길게 지우기, 권한 거부 시 안내와 키패드 동작
@@ -363,6 +380,7 @@ gradlew.bat assembleDebug
   - **복사한 번호 붙여넣기**, ⋮ 메뉴 붙여넣기·대기 추가
   - 녹음된 통화 ▶ → 재생 창, 통화기록 권한 전의 녹음 목록, 오디오 권한 요청
   - 통화기록 권한 요청 → 차단 시 안내와 삼성 전화로 이동, 각 줄의 문자 버튼
+  - **연락처에 추가**: 시트 표시 → 새 연락처(`ACTION_INSERT`) / 기존 연락처(`ACTION_INSERT_OR_EDIT`) 인텐트와 번호, 저장 후 새 연락처 상세·목록 갱신, 취소 시 번호 상세 유지, 펼친 화면에서 열고 접은 뒤에도 동작
 - **통화 녹음**: 파일 이름 해석 (한글·영문 형식, 번호가 날짜로 오인되지 않음), 통화·연락처 연결 규칙, 가짜 MediaStore로 조회·권한 확인
 
 1.2.0 수정: 일부 제조사 통화기록 Provider는 개수 제한(limit) 매개변수를 정렬보다 먼저 적용해 **오래된 기록만** 돌려줄 수 있습니다. 그러면 최신 통화와 그 녹음이 목록에서 빠집니다. 개수 제한 없이 읽은 뒤 앱에서 최신순으로 정렬하도록 바꾸고, 이를 확인하는 테스트를 추가했습니다.

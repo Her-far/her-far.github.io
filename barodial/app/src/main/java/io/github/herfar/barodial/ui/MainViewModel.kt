@@ -1,6 +1,8 @@
 package io.github.herfar.barodial.ui
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.runtime.getValue
@@ -27,6 +29,8 @@ import io.github.herfar.barodial.data.calllog.CallHistoryRepository
 import io.github.herfar.barodial.data.calllog.CallLogEntry
 import io.github.herfar.barodial.data.calllog.CallLogGrouping
 import io.github.herfar.barodial.data.contacts.Contact
+import io.github.herfar.barodial.data.contacts.ContactRef
+import io.github.herfar.barodial.data.contacts.ContactUris
 import io.github.herfar.barodial.data.contacts.ContactsRepository
 import io.github.herfar.barodial.data.contacts.ContactsState
 import io.github.herfar.barodial.data.contacts.PhoneNumber
@@ -46,7 +50,9 @@ import io.github.herfar.barodial.data.settings.StartTab
 import io.github.herfar.barodial.dial.DefaultDialerInfo
 import io.github.herfar.barodial.dial.DialerLauncher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -132,6 +138,23 @@ class MainViewModel(
     var numberPicker by mutableStateOf<NumberPickerState?>(null)
         private set
 
+    /** '연락처에 추가' 하단 시트에 띄운 번호 (null 이면 닫힘) */
+    var addContactNumber by mutableStateOf(savedState.get<String>(KEY_ADD_CONTACT))
+        private set
+
+    /**
+     * 시스템 연락처 앱의 등록·편집 화면을 열어 둔 상태.
+     * 돌아온 뒤 연락처를 다시 읽고, 저장된 연락처를 찾으면 상세 화면으로 연다.
+     * 연락처 화면이 떠 있는 동안 앱이 종료되어도 이어지도록 SavedStateHandle 에도 저장한다.
+     */
+    private var pendingContactEdit: PendingContactEdit? = PendingContactEdit.restore(savedState)
+        set(value) {
+            field = value
+            PendingContactEdit.save(savedState, value)
+            if (value == null) pendingContactEditExpiry?.cancel()
+        }
+    private var pendingContactEditExpiry: Job? = null
+
     var dialerInfo by mutableStateOf<DefaultDialerInfo?>(null)
         private set
 
@@ -199,6 +222,7 @@ class MainViewModel(
             if (!destinationChosen) destination = s.startTab.toDestination()
         }
         viewModelScope.launch { queryFlow.collect { savedState[KEY_QUERY] = it } }
+        viewModelScope.launch { contactsState.collect { resolvePendingContactEdit(it) } }
         viewModelScope.launch { _dialDigits.collect { savedState[KEY_DIAL] = it } }
     }
 
@@ -206,6 +230,11 @@ class MainViewModel(
 
     fun onResume() {
         contactsRepository.refreshIfNeeded()
+        if (pendingContactEdit != null) {
+            // 연락처 앱에서 돌아왔다: 저장 결과를 반영하도록 다시 읽는다.
+            contactsRepository.reload()
+            restartPendingContactEditExpiry()
+        }
         callHistoryRepository.refresh()
         recordingsRepository.refresh()
         dialerInfo = dialer.defaultDialerInfo()
@@ -239,7 +268,7 @@ class MainViewModel(
     }
 
     val canHandleBack: Boolean
-        get() = playing != null || numberPicker != null || searchActive || backStack.isNotEmpty() || favoritesEditMode ||
+        get() = playing != null || numberPicker != null || addContactNumber != null || searchActive || backStack.isNotEmpty() || favoritesEditMode ||
             destination != settings.value.startTab.toDestination()
 
     /** @return 처리했으면 true. false 면 앱을 닫는다. */
@@ -247,6 +276,7 @@ class MainViewModel(
         when {
             playing != null -> playing = null
             numberPicker != null -> numberPicker = null
+            addContactNumber != null -> dismissAddContact()
             backStack.isNotEmpty() -> backStack.removeAt(backStack.lastIndex)
             searchActive -> exitSearch()
             favoritesEditMode -> favoritesEditMode = false
@@ -562,16 +592,93 @@ class MainViewModel(
     fun editInContactsApp(contact: Contact) =
         sendEffect(UiEffect.Launch(listOf(dialer.editContactIntent(contact.id, contact.lookupKey)), R.string.error_no_contacts_app))
 
-    fun createContact(number: String? = null) =
-        sendEffect(UiEffect.Launch(listOf(dialer.insertContactIntent(number)), R.string.error_no_contacts_app))
+    /** 번호 없이 새 연락처 만들기 (연락처 탭의 + 버튼) */
+    fun createContact() = launchContactEditor(number = null, listOf(dialer.insertContactIntent(null)))
 
-    fun addNumberToContacts(number: String) =
-        sendEffect(
-            UiEffect.Launch(
-                listOf(dialer.insertOrEditContactIntent(number), dialer.insertContactIntent(number)),
-                R.string.error_no_contacts_app,
-            ),
-        )
+    /** '연락처에 추가': 새 연락처 / 기존 연락처 중 고르는 하단 시트를 연다. */
+    fun addNumberToContacts(number: String) {
+        val trimmed = number.trim()
+        if (KoreanPhoneNumbers.sanitizeDialInput(trimmed).isEmpty()) return
+        sendEffect(UiEffect.HideKeyboard)
+        setAddContactSheet(trimmed)
+    }
+
+    fun dismissAddContact() = setAddContactSheet(null)
+
+    /** 시트: 새 연락처 만들기 → 시스템 연락처 등록 화면 (번호 미리 입력) */
+    fun createContactWithNumber(number: String) {
+        setAddContactSheet(null)
+        val phone = contactPhoneText(number)
+        launchContactEditor(phone, listOf(dialer.insertContactIntent(phone)))
+    }
+
+    /** 시트: 기존 연락처에 추가 → 시스템 연락처 선택·편집 화면 (번호 전달). 처리 앱이 없으면 새 연락처 화면 */
+    fun addNumberToExistingContact(number: String) {
+        setAddContactSheet(null)
+        val phone = contactPhoneText(number)
+        launchContactEditor(phone, listOf(dialer.insertOrEditContactIntent(phone), dialer.insertContactIntent(phone)))
+    }
+
+    /** 연락처 앱에 넘길 번호: 키패드에서 숫자만 입력했어도 국내 형식(010-1234-5678)으로 저장되게 한다. */
+    private fun contactPhoneText(number: String): String = KoreanPhoneNumbers.format(number.trim())
+
+    private fun setAddContactSheet(number: String?) {
+        addContactNumber = number
+        savedState[KEY_ADD_CONTACT] = number
+    }
+
+    private fun launchContactEditor(number: String?, intents: List<Intent>) {
+        val digits = number?.let { KoreanPhoneNumbers.toNationalDigits(it) }?.takeIf { it.isNotEmpty() }
+        val known = digits?.let { (contactsState.value as? ContactsState.Ready)?.findByNumber(it) }
+        pendingContactEdit = PendingContactEdit(nationalDigits = digits, knownLookupKey = known?.lookupKey)
+        sendEffect(UiEffect.EditContact(intents, R.string.error_no_contacts_app))
+    }
+
+    /** 연락처 앱을 열지 못했다 (처리할 앱 없음). */
+    fun onContactEditorLaunchFailed() {
+        pendingContactEdit = null
+    }
+
+    /**
+     * 연락처 앱의 등록·편집 화면이 닫혔다 (저장 또는 취소).
+     * @param saved RESULT_OK 로 돌아왔는지
+     * @param resultUri 연락처 앱이 돌려준 저장된 연락처 URI (없을 수 있다)
+     */
+    fun onContactEditorClosed(saved: Boolean, resultUri: Uri?) {
+        val pending = pendingContactEdit ?: return
+        pendingContactEdit = pending.copy(saved = pending.saved || saved, result = ContactUris.parse(resultUri) ?: pending.result)
+        contactsRepository.reload()
+        restartPendingContactEditExpiry()
+        resolvePendingContactEdit(contactsState.value)
+    }
+
+    private fun restartPendingContactEditExpiry() {
+        pendingContactEditExpiry?.cancel()
+        pendingContactEditExpiry = viewModelScope.launch {
+            delay(PENDING_CONTACT_EDIT_TIMEOUT_MS)
+            pendingContactEdit = null
+        }
+    }
+
+    /** 다시 읽은 연락처에서 방금 저장한 연락처를 찾으면 그 상세 화면을 연다. */
+    private fun resolvePendingContactEdit(state: ContactsState) {
+        val pending = pendingContactEdit ?: return
+        val ready = state as? ContactsState.Ready ?: return
+        val fromResult = pending.result?.let { ready.find(it.lookupKey, it.contactId) }
+        // 번호로 찾는 경우: 원래 연락처에 없던 번호이거나, 연락처 앱이 저장했다고 알려 줬을 때만 (취소했는데 열리지 않게)
+        val byNumber = pending.nationalDigits?.let { ready.findByNumber(it) }
+            ?.takeIf { pending.saved || it.lookupKey != pending.knownLookupKey }
+        val contact = fromResult ?: byNumber ?: return
+        pendingContactEdit = null
+        showSavedContact(contact)
+    }
+
+    /** 저장된 연락처를 연다. 번호 상세 화면에서 왔다면 그 자리를 연락처 상세로 바꾼다. */
+    private fun showSavedContact(contact: Contact) {
+        sendEffect(UiEffect.HideKeyboard)
+        push(Route.Detail(contact.lookupKey, contact.id))
+        sendEffect(UiEffect.Message(R.string.message_contact_saved, contact.displayName))
+    }
 
     fun openSystemCallLog() = sendEffect(UiEffect.Launch(dialer.callLogIntents(), R.string.error_no_dialer))
 
@@ -719,6 +826,10 @@ class MainViewModel(
         private const val KEY_QUERY = "query"
         private const val KEY_DIAL = "dial"
         private const val KEY_SEARCH_ACTIVE = "searchActive"
+        private const val KEY_ADD_CONTACT = "addContact"
+
+        /** 연락처 앱에서 돌아온 뒤 저장 결과(연락처 다시 읽기)를 기다리는 시간 */
+        internal const val PENDING_CONTACT_EDIT_TIMEOUT_MS = 30_000L
         private const val MAX_RECENT_IN_SEARCH = 30
         private const val MAX_FREQUENT = 5
         private const val MAX_DIAL_LENGTH = 40
@@ -745,6 +856,31 @@ class MainViewModel(
                     savedState = createSavedStateHandle(),
                 )
             }
+        }
+    }
+}
+
+/** 연락처 앱에 맡긴 등록·편집 작업 */
+private data class PendingContactEdit(
+    /** 추가하려던 번호 (번호 없이 새 연락처를 만들 때는 null) */
+    val nationalDigits: String?,
+    /** 시작할 때 이미 이 번호를 가진 연락처 */
+    val knownLookupKey: String?,
+    val saved: Boolean = false,
+    val result: ContactRef? = null,
+) {
+    companion object {
+        private const val KEY_DIGITS = "pendingContactEdit.digits"
+        private const val KEY_KNOWN = "pendingContactEdit.known"
+
+        fun save(state: SavedStateHandle, value: PendingContactEdit?) {
+            state[KEY_DIGITS] = value?.let { it.nationalDigits.orEmpty() }
+            state[KEY_KNOWN] = value?.knownLookupKey
+        }
+
+        fun restore(state: SavedStateHandle): PendingContactEdit? {
+            val digits = state.get<String>(KEY_DIGITS) ?: return null
+            return PendingContactEdit(digits.ifEmpty { null }, state.get<String>(KEY_KNOWN))
         }
     }
 }

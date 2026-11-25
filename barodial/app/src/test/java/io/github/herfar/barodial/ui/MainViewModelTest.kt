@@ -3,7 +3,9 @@ package io.github.herfar.barodial.ui
 import android.Manifest
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
 import android.os.Looper
+import android.provider.ContactsContract
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.lifecycle.viewModelScope
@@ -20,6 +22,8 @@ import io.github.herfar.barodial.testing.FakeCallHistoryRepository
 import io.github.herfar.barodial.testing.FakeCallRecordingsRepository
 import io.github.herfar.barodial.data.history.HistoryKind
 import io.github.herfar.barodial.data.settings.AppSettings
+import io.github.herfar.barodial.dial.DialerLauncher
+import io.github.herfar.barodial.R
 import io.github.herfar.barodial.testing.FakeContactsRepository
 import io.github.herfar.barodial.testing.Harness
 import io.github.herfar.barodial.testing.InMemorySettingsRepository
@@ -36,6 +40,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import java.time.Duration
 
 @RunWith(AndroidJUnit4::class)
 class MainViewModelTest {
@@ -354,5 +359,141 @@ class MainViewModelTest {
         h.viewModel.onPermissionResult(PermissionPurpose.RECORDINGS, granted = false)
         assertEquals(false, h.recordings.lastPermissionResult)
         awaitUntil { effects.any { it is UiEffect.Message } }
+    }
+
+    // ---------------------------------------------------------------- 연락처에 추가
+
+    private fun editContactIntents(): List<Intent> = effects.filterIsInstance<UiEffect.EditContact>().last().intents
+
+    private fun readyWith(vararg extra: io.github.herfar.barodial.data.contacts.Contact) =
+        ContactsState.Ready.build(ContactsState.Ready.sortContacts(TestContacts.ALL + extra), FakeContactsRepository.engine)
+
+    @Test
+    fun addToContactsOpensSheetFirstAndBackClosesIt() {
+        start()
+        h.viewModel.openNumber("02-999-8888")
+        h.viewModel.addNumberToContacts("02-999-8888")
+        assertEquals("02-999-8888", h.viewModel.addContactNumber)
+        shadowOf(Looper.getMainLooper()).idle()
+        // 고르기 전에는 연락처 앱을 열지 않는다 (기존 연락처 선택 화면으로 바로 가지 않음)
+        assertTrue(effects.none { it is UiEffect.EditContact || it is UiEffect.Launch })
+        assertTrue(h.viewModel.canHandleBack)
+        assertTrue(h.viewModel.onBack())
+        assertNull(h.viewModel.addContactNumber)
+        assertEquals(Route.NumberDetail("02-999-8888"), h.viewModel.backStack.last())
+    }
+
+    @Test
+    fun newContactChoiceOpensSystemInsertScreenWithNumber() {
+        start()
+        h.viewModel.addNumberToContacts("02-999-8888")
+        h.viewModel.createContactWithNumber("02-999-8888")
+        assertNull("시트는 닫힌다", h.viewModel.addContactNumber)
+        awaitUntil { effects.any { it is UiEffect.EditContact } }
+        val intent = editContactIntents().single()
+        assertEquals(Intent.ACTION_INSERT, intent.action)
+        assertEquals(ContactsContract.Contacts.CONTENT_TYPE, intent.type)
+        assertEquals("02-999-8888", intent.getStringExtra(ContactsContract.Intents.Insert.PHONE))
+        assertTrue(intent.getBooleanExtra(DialerLauncher.EXTRA_FINISH_ON_SAVE, false))
+    }
+
+    @Test
+    fun existingContactChoiceOpensInsertOrEditWithNumber() {
+        start()
+        h.viewModel.addNumberToContacts("02-999-8888")
+        h.viewModel.addNumberToExistingContact("02-999-8888")
+        awaitUntil { effects.any { it is UiEffect.EditContact } }
+        val intents = editContactIntents()
+        assertEquals(Intent.ACTION_INSERT_OR_EDIT, intents[0].action)
+        assertEquals(ContactsContract.Contacts.CONTENT_ITEM_TYPE, intents[0].type)
+        assertEquals("02-999-8888", intents[0].getStringExtra(ContactsContract.Intents.Insert.PHONE))
+        assertTrue(intents[0].getBooleanExtra(DialerLauncher.EXTRA_FINISH_ON_SAVE, false))
+        // 선택 화면을 처리할 앱이 없으면 새 연락처 화면으로
+        assertEquals(Intent.ACTION_INSERT, intents[1].action)
+    }
+
+    @Test
+    fun savedNewContactReplacesNumberDetailWithContactDetail() {
+        start()
+        h.viewModel.openNumber("02-999-8888")
+        h.viewModel.addNumberToContacts("02-999-8888")
+        h.viewModel.createContactWithNumber("02-999-8888")
+        val reloadsBefore = h.contacts.reloadCount
+
+        // 연락처 앱에서 저장하고 돌아온다 → 연락처를 다시 읽고 새 연락처 상세로
+        h.viewModel.onContactEditorClosed(saved = true, resultUri = null)
+        assertTrue("돌아오면 연락처를 다시 읽는다", h.contacts.reloadCount > reloadsBefore)
+        assertEquals(Route.NumberDetail("02-999-8888"), h.viewModel.backStack.last())
+        val saved = TestContacts.contact(50, "새친구", TestContacts.phone("02-999-8888"))
+        h.contacts.set(readyWith(saved))
+        awaitUntil { h.viewModel.backStack.lastOrNull() == Route.Detail(saved.lookupKey, saved.id) }
+        assertEquals("번호 상세 자리를 연락처 상세가 대신한다", 1, h.viewModel.backStack.size)
+        awaitUntil { effects.any { it is UiEffect.Message && it.message == R.string.message_contact_saved && it.arg == "새친구" } }
+    }
+
+    @Test
+    fun savedContactIsFoundEvenIfProviderUpdatesBeforeResultArrives() {
+        start()
+        h.viewModel.openNumber("02-999-8888")
+        h.viewModel.createContactWithNumber("02-999-8888")
+        // 연락처 앱이 저장하는 동안 변경 감지로 먼저 다시 읽힌 경우
+        val saved = TestContacts.contact(51, "먼저읽힘", TestContacts.phone("02-999-8888"))
+        h.contacts.set(readyWith(saved))
+        awaitUntil { h.viewModel.backStack.lastOrNull() == Route.Detail(saved.lookupKey, saved.id) }
+        h.viewModel.onContactEditorClosed(saved = true, resultUri = null)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, h.viewModel.backStack.size)
+    }
+
+    @Test
+    fun resultUriOpensTheExistingContactTheNumberWasAddedTo() {
+        start()
+        h.viewModel.openNumber("02-999-8888")
+        h.viewModel.addNumberToExistingContact("02-999-8888")
+        val lee = TestContacts.LEE_CHEOLSU
+        h.viewModel.onContactEditorClosed(
+            saved = true,
+            resultUri = Uri.parse("content://com.android.contacts/contacts/lookup/${lee.lookupKey}/${lee.id}"),
+        )
+        awaitUntil { h.viewModel.backStack.lastOrNull() == Route.Detail(lee.lookupKey, lee.id) }
+    }
+
+    @Test
+    fun cancelledEditorKeepsNumberDetailAndStopsWaiting() {
+        start()
+        h.viewModel.openNumber("02-999-8888")
+        h.viewModel.createContactWithNumber("02-999-8888")
+        h.viewModel.onContactEditorClosed(saved = false, resultUri = null)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(Route.NumberDetail("02-999-8888"), h.viewModel.backStack.last())
+
+        // 기다리는 시간이 지나면, 나중에 다른 곳에서 저장되어도 화면이 갑자기 바뀌지 않는다
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(MainViewModel.PENDING_CONTACT_EDIT_TIMEOUT_MS + 1_000))
+        h.contacts.set(readyWith(TestContacts.contact(52, "나중에", TestContacts.phone("02-999-8888"))))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(Route.NumberDetail("02-999-8888"), h.viewModel.backStack.last())
+    }
+
+    @Test
+    fun cancellingForAlreadySavedNumberDoesNotJumpToContact() {
+        start()
+        // 키패드에서 이미 저장된 번호(김철수)로 '연락처에 추가' → 취소
+        h.viewModel.addNumberToContacts("010-1234-5678")
+        h.viewModel.createContactWithNumber("010-1234-5678")
+        h.viewModel.onContactEditorClosed(saved = false, resultUri = null)
+        h.contacts.set(readyWith())
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(h.viewModel.backStack.isEmpty())
+    }
+
+    @Test
+    fun contactsTabNewContactUsesInsertWithoutNumber() {
+        start()
+        h.viewModel.createContact()
+        awaitUntil { effects.any { it is UiEffect.EditContact } }
+        val intent = editContactIntents().single()
+        assertEquals(Intent.ACTION_INSERT, intent.action)
+        assertEquals(ContactsContract.Contacts.CONTENT_TYPE, intent.type)
+        assertNull(intent.getStringExtra(ContactsContract.Intents.Insert.PHONE))
     }
 }

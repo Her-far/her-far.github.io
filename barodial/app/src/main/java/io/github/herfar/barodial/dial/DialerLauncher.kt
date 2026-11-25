@@ -71,18 +71,26 @@ class DialerLauncher(context: Context) {
         Intent(Intent.ACTION_EDIT, lookupUri(contactId, lookupKey))
             .putExtra("finishActivityOnSaveCompleted", true)
 
-    /** 새 연락처 만들기 (선택적으로 번호를 채워 넣는다). */
+    /**
+     * 시스템 연락처 앱의 "새 연락처" 등록 화면 (ACTION_INSERT + Contacts.CONTENT_TYPE).
+     * [number] 가 있으면 전화번호 칸에 미리 넣는다. 저장은 연락처 앱이 하고, 이 앱은 DB 에 직접 쓰지 않는다.
+     */
     fun insertContactIntent(number: String?): Intent =
-        Intent(Intent.ACTION_INSERT, ContactsContract.Contacts.CONTENT_URI).apply {
+        Intent(Intent.ACTION_INSERT).apply {
+            type = ContactsContract.Contacts.CONTENT_TYPE
             if (!number.isNullOrEmpty()) putExtra(ContactsContract.Intents.Insert.PHONE, number)
-            putExtra("finishActivityOnSaveCompleted", true)
+            putExtra(EXTRA_FINISH_ON_SAVE, true)
         }
 
-    /** 기존 연락처에 추가하거나 새로 만들기 선택 화면 */
+    /**
+     * 시스템 연락처 앱에서 기존 연락처를 골라 [number] 를 추가하는 화면 (ACTION_INSERT_OR_EDIT).
+     * 고른 연락처의 편집 화면에 번호가 미리 들어간다.
+     */
     fun insertOrEditContactIntent(number: String): Intent =
         Intent(Intent.ACTION_INSERT_OR_EDIT).apply {
             type = ContactsContract.Contacts.CONTENT_ITEM_TYPE
             putExtra(ContactsContract.Intents.Insert.PHONE, number)
+            putExtra(EXTRA_FINISH_ON_SAVE, true)
         }
 
     /**
@@ -160,7 +168,13 @@ class DialerLauncher(context: Context) {
     /** 여러 후보 중 처음으로 실행에 성공한 인텐트를 실행한다. */
     fun launchFirst(context: Context, intents: List<Intent>): Boolean = intents.any { launch(context, it) }
 
-    private companion object {
-        const val TAG = "DialerLauncher"
+    companion object {
+        private const val TAG = "DialerLauncher"
+
+        /**
+         * 연락처 편집 화면에 "저장하면 화면을 닫고 호출한 앱으로 돌아가라"고 알리는 값.
+         * (Android 4.0+ 연락처 앱 공식 동작. 없으면 저장 후 연락처 보기 화면이 남는다)
+         */
+        const val EXTRA_FINISH_ON_SAVE = "finishActivityOnSaveCompleted"
     }
 }

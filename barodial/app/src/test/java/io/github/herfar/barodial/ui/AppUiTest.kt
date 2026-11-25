@@ -1,11 +1,14 @@
 package io.github.herfar.barodial.ui
 
 import android.Manifest
+import android.app.Activity
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.net.Uri
 import android.provider.CallLog
+import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -25,6 +28,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -457,5 +461,125 @@ class AppUiTest {
         // 연락처 탭은 그대로 (가로 스와이프로 오인하지 않음)
         settlePager()
         assertEquals(Destination.CONTACTS, h.viewModel.destination)
+    }
+
+    // ---------------------------------------------------------------- 연락처에 추가
+
+    private fun readyWith(vararg extra: io.github.herfar.barodial.data.contacts.Contact) =
+        ContactsState.Ready.build(ContactsState.Ready.sortContacts(TestContacts.ALL + extra), FakeContactsRepository.engine)
+
+    private fun sheetClosed() = rule.onAllNodesWithTag("addContactSheet").fetchSemanticsNodes().isEmpty()
+
+    @Test
+    fun addToContactsShowsSheetThenSavedNewContactIsShown() {
+        val h = Harness(app)
+        show(h)
+        rule.runOnUiThread { h.viewModel.openNumber("02-999-8888") }
+        waitForTag("numberDetail")
+        rule.onNodeWithTag("numberDetailAddContact").performClick()
+
+        // 바텀시트: 두 가지 선택지, 연락처 앱은 아직 열리지 않음
+        waitForTag("addContactSheet")
+        rule.onNodeWithTag("addContactNumber").assertTextEquals("02-999-8888")
+        rule.onNodeWithTag("addContactNew").assertIsDisplayed()
+        rule.onNodeWithTag("addContactExisting").assertIsDisplayed()
+        assertEquals(null, shadowOf(rule.activity).nextStartedActivityForResult)
+
+        rule.onNodeWithTag("addContactNew").performClick()
+        rule.waitForIdle()
+        val started = shadowOf(rule.activity).nextStartedActivityForResult
+        assertNotNull("시스템 연락처 등록 화면을 결과 받기 방식으로 연다", started)
+        assertEquals(Intent.ACTION_INSERT, started.intent.action)
+        assertEquals(ContactsContract.Contacts.CONTENT_TYPE, started.intent.type)
+        assertEquals("02-999-8888", started.intent.getStringExtra(ContactsContract.Intents.Insert.PHONE))
+        rule.waitUntil(3_000) { sheetClosed() }
+
+        // 연락처 앱에서 저장하고 돌아옴 → 목록 갱신, 번호 상세 대신 새 연락처 상세
+        val saved = TestContacts.contact(60, "새친구", TestContacts.phone("02-999-8888"))
+        rule.runOnUiThread { h.contacts.set(readyWith(saved)) }
+        shadowOf(rule.activity).receiveResult(started.intent, Activity.RESULT_OK, null)
+        waitForTag("contactDetail")
+        rule.onNodeWithTag("detailName").assertTextEquals("새친구")
+        rule.onAllNodesWithTag("numberDetail").assertCountEquals(0)
+        rule.onNodeWithText("새친구 연락처에 저장했습니다").assertExists()
+
+        // 뒤로 가면 원래 탭, 연락처 탭 목록에도 새 연락처가 보인다
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("tab_CONTACTS").performClick()
+        settlePager()
+        rule.onNodeWithTag("contactsList").performScrollToNode(hasTestTag("contactRow_60"))
+        rule.onNodeWithTag("contactRow_60").assertIsDisplayed()
+    }
+
+    @Test
+    fun cancellingTheContactsAppReturnsToNumberDetail() {
+        val h = Harness(app)
+        show(h)
+        rule.runOnUiThread { h.viewModel.openNumber("02-999-8888") }
+        waitForTag("numberDetail")
+        rule.onNodeWithTag("numberDetailAddContact").performClick()
+        waitForTag("addContactSheet")
+        rule.onNodeWithTag("addContactNew").performClick()
+        rule.waitForIdle()
+        val started = shadowOf(rule.activity).nextStartedActivityForResult
+        shadowOf(rule.activity).receiveResult(started.intent, Activity.RESULT_CANCELED, null)
+        rule.waitForIdle()
+        rule.onNodeWithTag("numberDetail").assertIsDisplayed()
+        rule.onNodeWithTag("numberDetailTitle").assertTextEquals("02-999-8888")
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h900dp-xhdpi")
+    fun addToExistingContactWorksUnfoldedAndAfterFolding() {
+        var width by mutableStateOf(840.dp)
+        val h = Harness(app)
+        rule.setContent {
+            BaroDialTheme(dynamicColor = false) {
+                Box(Modifier.width(width).fillMaxHeight()) { BaroDialApp(h.viewModel, h.launcher) }
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("expandedLayout").assertExists()
+        // 펼친 화면: 오른쪽 창에 번호 상세 → 연락처에 추가 → 시트
+        rule.runOnUiThread { h.viewModel.openNumber("02-999-8888") }
+        waitForTag("numberDetail")
+        rule.onNodeWithTag("numberDetailAddContact").performClick()
+        waitForTag("addContactSheet")
+
+        // 시트가 떠 있는 채로 접어도 시트와 번호가 유지된다
+        width = 400.dp
+        rule.waitForIdle()
+        rule.onAllNodesWithTag("expandedLayout").assertCountEquals(0)
+        rule.onNodeWithTag("addContactNumber").assertTextEquals("02-999-8888")
+
+        rule.onNodeWithTag("addContactExisting").performClick()
+        rule.waitForIdle()
+        val started = shadowOf(rule.activity).nextStartedActivityForResult
+        assertEquals(Intent.ACTION_INSERT_OR_EDIT, started.intent.action)
+        assertEquals(ContactsContract.Contacts.CONTENT_ITEM_TYPE, started.intent.type)
+        assertEquals("02-999-8888", started.intent.getStringExtra(ContactsContract.Intents.Insert.PHONE))
+
+        // 이철수 연락처에 번호를 추가하고 돌아옴 (연락처 앱이 돌려준 URI 로 찾는다)
+        val lee = TestContacts.LEE_CHEOLSU
+        val updated = lee.copy(phones = lee.phones + TestContacts.phone("02-999-8888"))
+        rule.runOnUiThread {
+            h.contacts.set(
+                ContactsState.Ready.build(
+                    ContactsState.Ready.sortContacts(TestContacts.ALL.map { if (it.id == lee.id) updated else it }),
+                    FakeContactsRepository.engine,
+                ),
+            )
+        }
+        val result = Intent().setData(Uri.parse("content://com.android.contacts/contacts/lookup/${lee.lookupKey}/${lee.id}"))
+        shadowOf(rule.activity).receiveResult(started.intent, Activity.RESULT_OK, result)
+        waitForTag("contactDetail")
+        rule.onNodeWithTag("detailName").assertTextEquals("이철수")
+
+        // 다시 펼치면 오른쪽 창에 같은 연락처 상세
+        width = 840.dp
+        rule.waitForIdle()
+        rule.onNodeWithTag("expandedLayout").assertExists()
+        rule.onNodeWithTag("detailName").assertTextEquals("이철수")
     }
 }

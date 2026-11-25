@@ -2,10 +2,12 @@ package io.github.herfar.barodial.ui
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
@@ -35,7 +37,7 @@ import java.io.File
 
 /**
  * 화면 캡처 (docs/screenshots). 테스트 전용 예시 연락처를 사용한다.
- * 실행: gradlew testStandardDebugUnitTest --tests "*ScreenshotTest*"
+ * 실행: gradlew testDebugUnitTest --tests "*ScreenshotTest*"
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -125,6 +127,33 @@ class ScreenshotTest {
         File(outDir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /**
+     * 하단 시트처럼 별도 창으로 뜨는 화면까지 포함해 저장한다.
+     * captureToImage 는 액티비티 창만 찍으므로, 바탕은 그것으로 찍고
+     * 그 위에 추가 창(WindowManagerGlobal 에 등록된 뷰)을 직접 그려 겹친다.
+     */
+    private fun captureWithWindows(name: String) {
+        settle()
+        val base = rule.onAllNodes(isRoot())[0].captureToImage().asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(base)
+        rule.runOnUiThread {
+            val global = Class.forName("android.view.WindowManagerGlobal").getMethod("getInstance").invoke(null)
+            val field = global.javaClass.getDeclaredField("mViews").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            val views = (field.get(global) as List<android.view.View>).toList()
+            val activityRoot = rule.activity.window.decorView
+            for (v in views) {
+                if (v === activityRoot || !v.isShown || v.width == 0) continue
+                val loc = IntArray(2).also { v.getLocationOnScreen(it) }
+                canvas.save()
+                canvas.translate(loc[0].toFloat(), loc[1].toFloat())
+                v.draw(canvas)
+                canvas.restore()
+            }
+        }
+        File(outDir, "$name.png").outputStream().use { base.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
     private fun search(h: Harness, text: String) {
         rule.runOnUiThread {
             h.viewModel.onSearchFocused()
@@ -211,6 +240,12 @@ class ScreenshotTest {
         search(h, "한국전력")
         settle("contactResult_4")
         capture("unfolded_03_search")
+
+        rule.runOnUiThread { h.viewModel.exitSearch(); h.viewModel.openNumber("02-555-7777") }
+        settle("numberDetail")
+        rule.runOnUiThread { h.viewModel.addNumberToContacts("02-555-7777") }
+        settle("addContactSheet")
+        captureWithWindows("unfolded_04_add_contact_sheet")
     }
 
     @Test
@@ -241,6 +276,11 @@ class ScreenshotTest {
         rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.openNumber("02-555-7777") }
         settle("numberDetail")
         capture("folded_15_number_detail")
+
+        rule.runOnUiThread { h.viewModel.addNumberToContacts("02-555-7777") }
+        settle("addContactSheet")
+        captureWithWindows("folded_17_add_contact_sheet")
+        rule.runOnUiThread { h.viewModel.dismissAddContact() }
 
         rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.openRecordingDiagnostics() }
         settle("recordingDiagnostics")
