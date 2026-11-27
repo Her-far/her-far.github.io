@@ -250,14 +250,18 @@ fun CallIconButton(
     onClick: () -> Unit,
     contentDescription: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val colors = LocalCallColors.current
     FilledIconButton(
         onClick = onClick,
         modifier = modifier.size(48.dp),
+        enabled = enabled,
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = colors.call.copy(alpha = 0.14f),
             contentColor = colors.call,
+            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f),
         ),
     ) {
         Icon(AppIcons.Call, contentDescription = contentDescription, modifier = Modifier.size(22.dp))

@@ -24,6 +24,9 @@ import io.github.herfar.barodial.testing.FakeCallHistoryRepository
 import io.github.herfar.barodial.testing.FakeCallRecordingsRepository
 import io.github.herfar.barodial.testing.FakeContactsRepository
 import io.github.herfar.barodial.testing.Harness
+import io.github.herfar.barodial.data.settings.AppSettings
+import io.github.herfar.barodial.testing.KakaoSamples
+import io.github.herfar.barodial.testing.InMemorySettingsRepository
 import io.github.herfar.barodial.testing.InMemoryFavoritesRepository
 import io.github.herfar.barodial.testing.TestContacts
 import io.github.herfar.barodial.ui.theme.BaroDialTheme
@@ -82,7 +85,7 @@ class ScreenshotTest {
         CallLogEntry(6, "123", "123", "고객센터", CallType.OUTGOING, now - 27 * hour, 120),
     )
 
-    private fun harness(callLog: Boolean = false): Harness {
+    private fun harness(callLog: Boolean = false, online: Boolean = false): Harness {
         val favorites = InMemoryFavoritesRepository(
             listOf(
                 FavoriteEntry("lookup-1", 1, "김철수"),
@@ -100,6 +103,16 @@ class ScreenshotTest {
                 FakeCallHistoryRepository()
             },
             recordings = FakeCallRecordingsRepository(RecordingsAvailability.Available, sampleRecordings()),
+            settings = InMemorySettingsRepository(
+                if (online) AppSettings(onlineSearchEnabled = true, kakaoRestApiKey = "0123456789abcdef0123456789abcdef") else AppSettings(),
+            ),
+        )
+        h.placeTransport.respond(
+            mapOf(
+                "한국전력공사" to KakaoSamples.KEPCO,
+                "전기공사협회" to KakaoSamples.ELECTRIC_ASSOCIATION,
+                "김포시청" to KakaoSamples.GIMPO_CITY_HALL,
+            ),
         )
         runBlocking {
             h.history.recordContact("lookup-24", 24, "문지우", "010-4567-8901")
@@ -285,5 +298,33 @@ class ScreenshotTest {
         rule.runOnUiThread { h.viewModel.popRoute(); h.viewModel.openRecordingDiagnostics() }
         settle("recordingDiagnostics")
         capture("folded_16_recording_diagnostics")
+    }
+
+    @Test
+    @Config(qualifiers = "ko-rKR-w384dp-h832dp-xxhdpi")
+    fun foldedOnlineSearch() {
+        val h = harness(online = true)
+        show(h)
+        settle("homeScreen")
+        search(h, "한국전력공사")
+        settle("place_k1")
+        capture("folded_18_online_kepco")
+        search(h, "전기공사협회")
+        settle("place_e4")
+        capture("folded_19_online_association")
+        rule.runOnUiThread { h.viewModel.exitSearch(); h.viewModel.openOnlineSearchSetup() }
+        settle("onlineSetup")
+        capture("folded_20_online_setup")
+    }
+
+    @Test
+    @Config(qualifiers = "ko-rKR-w820dp-h900dp-xhdpi")
+    fun unfoldedOnlineSearch() {
+        val h = harness(online = true)
+        show(h)
+        settle("expandedLayout")
+        search(h, "김포시청")
+        settle("place_g2")
+        capture("unfolded_05_online_search")
     }
 }

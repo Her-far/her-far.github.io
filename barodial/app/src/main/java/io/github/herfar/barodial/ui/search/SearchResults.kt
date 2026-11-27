@@ -70,6 +70,9 @@ class SearchActions(
  * 검색 결과 목록.
  * [nearSearchBar] 가 true 면 가장 관련 높은 결과가 맨 아래(검색창 바로 위)에 온다.
  * 한 손으로 쥐었을 때 엄지가 닿는 위치에 첫 번째 결과가 놓이도록 한 설계다.
+ *
+ * 온라인 검색([online])이 있으면 '내 연락처' 영역과 '온라인 검색 · 카카오맵' 영역으로 나눠 보여 준다.
+ * 연락처 결과는 입력 즉시, 온라인 결과는 입력이 멈춘 뒤 따로 채워진다.
  */
 @Composable
 fun SearchResults(
@@ -77,6 +80,9 @@ fun SearchResults(
     nearSearchBar: Boolean,
     actions: SearchActions,
     modifier: Modifier = Modifier,
+    online: OnlineSearchUi = OnlineSearchUi.Hidden,
+    nearbySelected: Boolean = false,
+    onlineActions: OnlineActions? = null,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val hideKeyboardOnScroll = remember(keyboard) {
@@ -92,7 +98,8 @@ fun SearchResults(
         if (listState.firstVisibleItemIndex > 0) listState.scrollToItem(0)
     }
 
-    if (state.rows.isEmpty()) {
+    val onlineVisible = onlineActions != null && online != OnlineSearchUi.Hidden && state.query.isNotEmpty()
+    if (state.rows.isEmpty() && !onlineVisible) {
         Box(modifier.fillMaxSize(), contentAlignment = if (nearSearchBar) Alignment.BottomCenter else Alignment.TopCenter) {
             EmptyMessage(
                 text = if (state.query.isEmpty()) {
@@ -116,6 +123,19 @@ fun SearchResults(
             .testTag("searchResults"),
         contentPadding = PaddingValues(vertical = 8.dp),
     ) {
+        // 화면 위→아래 읽는 순서: [내 연락처 머리글] [연락처 결과…] [온라인 영역…]
+        // 검색창 가까이 배치(reverseLayout)일 때는 목록 순서가 아래→위이므로, 머리글은 결과 뒤에 넣고 온라인 영역은 뒤집는다.
+        val localHeader: ResultEntry? = when {
+            !onlineVisible -> null
+            state.rows.isEmpty() -> "local:none" to {
+                LocalSectionHeader(stringResource(R.string.online_local_none, state.query), "localNone")
+            }
+            else -> "local:header" to {
+                LocalSectionHeader(stringResource(R.string.online_local_section_title), "localHeader")
+            }
+        }
+        val onlineList = if (onlineVisible) onlineEntries(online, nearbySelected, onlineActions!!) else emptyList()
+        if (!nearSearchBar && localHeader != null) item(localHeader.first) { localHeader.second() }
         items(state.rows, key = { it.key }) { row ->
             when (row) {
                 is SearchRow.DialNumber -> DialNumberRow(row, actions)
@@ -131,6 +151,9 @@ fun SearchResults(
                 SearchRow.ContactsPermissionHint -> ContactsPermissionCard(onAllow = actions.requestContactsPermission)
             }
         }
+        if (nearSearchBar && localHeader != null) item(localHeader.first) { localHeader.second() }
+        val ordered = if (nearSearchBar) onlineList.asReversed() else onlineList
+        items(ordered, key = { it.first }) { it.second() }
     }
 }
 

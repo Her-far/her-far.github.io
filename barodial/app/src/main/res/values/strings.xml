@@ -29,7 +29,6 @@
     <string name="add_contact_existing_desc">저장된 연락처를 골라 이 번호를 추가합니다</string>
     <string name="message_contact_saved">%1$s 연락처에 저장했습니다</string>
     <string name="action_back">뒤로</string>
-    <string name="action_close">닫기</string>
     <string name="action_cancel">취소</string>
     <string name="action_delete">삭제</string>
     <string name="action_done">완료</string>
@@ -227,7 +226,7 @@
     <string name="settings_perm_recordings_required">아직 요청하지 않음 · 눌러서 허용</string>
     <string name="settings_section_about">정보</string>
     <string name="settings_privacy_title">개인정보</string>
-    <string name="settings_privacy_body">인터넷 권한이 없어 어떤 정보도 외부로 전송할 수 없습니다. 검색 기록·즐겨찾기·설정은 이 기기에만 저장되며 백업에서도 제외됩니다. 광고·분석 SDK를 사용하지 않습니다.</string>
+    <string name="settings_privacy_body">연락처·통화기록·녹음은 외부로 보내지 않습니다. 인터넷은 \'온라인 상호 검색\'을 켰을 때만 쓰며, 검색어(그리고 \'가까운 순\'을 켰을 때의 대략적인 위치)만 카카오 또는 직접 설정한 프록시로 보냅니다. 검색 기록·즐겨찾기·설정은 이 기기에만 저장되며 백업에서도 제외됩니다. 광고·분석 SDK를 사용하지 않습니다.</string>
     <string name="settings_version">버전</string>
     <string name="settings_open_default_apps">기본 앱 설정 열기</string>
 
@@ -245,6 +244,67 @@
     <string name="message_call_phone_denied">전화 걸기 권한이 없어 다이얼 화면을 거쳐 발신합니다</string>
 
     <!-- 오류 -->
+    <!-- 온라인 상호·기관 검색 (카카오 로컬) -->
+    <string name="online_section_title">온라인 검색 · 카카오맵</string>
+    <string name="online_local_section_title">내 연락처</string>
+    <string name="online_local_none">연락처에 ‘%1$s’ 없음</string>
+    <string name="online_nearby">가까운 순</string>
+    <string name="online_loading">‘%1$s’ 온라인 검색 중…</string>
+    <string name="online_empty">카카오맵에서 ‘%1$s’ 결과를 찾지 못했습니다.</string>
+    <string name="online_no_phone">전화번호 없음</string>
+    <string name="online_call_target">%1$s 전화 걸기 (전화 앱에서 확인 후 발신)</string>
+    <string name="online_no_phone_cd">%1$s: 전화번호가 없어 걸 수 없습니다</string>
+    <string name="online_open_map">%1$s 카카오맵에서 보기</string>
+    <string name="online_distance_m">%1$dm</string>
+    <string name="online_distance_km">%1$.1fkm</string>
+    <string name="online_load_more">더 보기</string>
+    <string name="online_retry">다시 시도</string>
+    <string name="online_settings">설정</string>
+    <string name="online_setup">설정하기</string>
+    <string name="online_turn_on">켜기</string>
+    <string name="online_allow_location">위치 허용</string>
+    <string name="online_off_hint">업체·기관 전화번호도 찾으려면 온라인 검색을 켜세요.</string>
+    <string name="online_not_configured">온라인 검색을 쓰려면 카카오 REST API 키나 프록시 주소를 설정해야 합니다.</string>
+    <string name="online_location_needed">가까운 순으로 보려면 위치 권한이 필요합니다. 지금은 전국 결과입니다.</string>
+    <string name="online_location_unavailable">현재 위치를 알 수 없어 전국 결과를 보여 줍니다.</string>
+    <string name="online_error_offline">인터넷에 연결되어 있지 않아 온라인 검색을 하지 못했습니다. 연락처 검색은 그대로 쓸 수 있습니다.</string>
+    <string name="online_error_network">카카오 서버에 연결하지 못했습니다. 잠시 후 다시 시도하세요.</string>
+    <string name="online_error_key">카카오 REST API 키가 올바르지 않습니다. 설정에서 키를 확인하세요.</string>
+    <string name="online_error_proxy_auth">프록시 접근 토큰이 맞지 않거나 프록시의 카카오 키가 올바르지 않습니다.</string>
+    <string name="online_error_forbidden">카카오맵 API를 쓸 권한이 없습니다. 카카오디벨로퍼스 앱의 [카카오맵] › [사용 설정]을 ON으로 바꾸세요.</string>
+    <string name="online_error_quota">카카오 검색 호출 한도를 넘었습니다. 잠시 후(일일 한도라면 내일) 다시 시도하세요.</string>
+    <string name="online_error_server">카카오 서버 오류(%1$d)로 검색하지 못했습니다.</string>
+    <string name="online_footer">정보 제공: 카카오 · 검색 결과는 저장하지 않습니다.</string>
+    <string name="online_footer_contact">카카오 정책상 검색 결과를 연락처에 자동으로 넣을 수 없습니다. 저장하려면 연락처 앱에서 직접 입력하세요.</string>
+    <string name="online_enter_contact">직접 입력</string>
+    <string name="error_no_browser">카카오맵이나 브라우저를 열 수 없습니다</string>
+    <string name="message_location_denied">위치 권한이 없어 전국 결과를 보여 줍니다</string>
+
+    <string name="settings_section_online">온라인 상호·기관 검색</string>
+    <string name="settings_online_enable">온라인 검색 사용</string>
+    <string name="settings_online_enable_desc">연락처에 없는 업체·기관 번호를 카카오맵에서 찾습니다. 2글자 이상의 검색어만 보내며, 숫자(전화번호)와 초성 검색어는 보내지 않습니다.</string>
+    <string name="settings_online_connection">연결 설정</string>
+    <string name="settings_online_status_none">설정 필요 · 눌러서 키 또는 프록시 입력</string>
+    <string name="settings_online_status_direct">카카오 REST API 키 (…%1$s)</string>
+    <string name="settings_online_status_proxy">프록시 %1$s</string>
+    <string name="settings_online_status_label">저장된 설정: %1$s</string>
+    <string name="message_online_saved">온라인 검색 설정을 저장했습니다</string>
+    <string name="online_mode_direct">내 REST API 키</string>
+    <string name="online_mode_proxy">프록시 서버</string>
+    <string name="online_key_label">카카오 REST API 키</string>
+    <string name="online_key_help">키는 이 기기의 앱 전용 저장소에만 저장되고 백업되지 않습니다. 앱(APK)에는 키가 들어 있지 않습니다.</string>
+    <string name="online_proxy_url_label">프록시 주소 (https://…)</string>
+    <string name="online_proxy_token_label">접근 토큰 (선택)</string>
+    <string name="online_proxy_help">카카오 키는 프록시 서버에만 두고, 이 앱은 프록시 주소와 토큰만 압니다. 서버 코드는 저장소의 barodial/proxy 폴더에 있습니다.</string>
+    <string name="online_test">연결 확인</string>
+    <string name="online_test_running">확인 중…</string>
+    <string name="online_test_ok">연결됨: ‘김포시청’ 검색 결과 %1$d건</string>
+    <string name="online_test_invalid">키 또는 주소 형식이 올바르지 않습니다. (프록시는 https 주소만 쓸 수 있습니다)</string>
+    <string name="online_show_key">키 보기</string>
+    <string name="online_guide_title">온라인 검색 설정 방법</string>
+    <string name="online_guide_body">1. developers.kakao.com 에 로그인해 [앱] › [앱 만들기]로 앱을 만듭니다.\n2. 앱 관리 페이지의 [카카오맵] › [사용 설정]에서 [상태]를 ON으로 바꿉니다. (꺼져 있으면 권한 오류가 납니다)\n3. [앱 키]에서 REST API 키를 복사합니다.\n4. 이 화면의 [내 REST API 키]에 붙여 넣고 [연결 확인]으로 확인한 뒤 [저장]을 누릅니다.\n\n여러 사람이 쓰거나 키를 휴대폰에 두고 싶지 않다면, 저장소의 barodial/proxy 폴더에 있는 프록시(Cloudflare Workers)를 배포하고 [프록시 서버]에 주소와 토큰을 넣으세요.\n\n카카오 운영 정책에 따라 검색 결과(상호·번호·주소)는 화면에만 잠시 보여 주고 저장하지 않습니다. 무료 사용량을 넘으면 검색이 잠시 막힙니다.</string>
+    <string name="action_save">저장</string>
+    <string name="action_close">닫기</string>
     <string name="error_no_dialer">전화 앱을 열 수 없습니다</string>
     <string name="error_no_sms_app">문자 앱을 열 수 없습니다</string>
     <string name="error_no_contacts_app">연락처 앱을 열 수 없습니다</string>

@@ -113,6 +113,9 @@ class DialerLauncher(context: Context) {
     fun audioIntent(uri: String): Intent =
         Intent(Intent.ACTION_VIEW).setDataAndType(uri.toUri(), "audio/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
+    /** 웹 주소 열기 (카카오맵 장소 상세 등). 카카오맵 앱이 설치되어 있으면 앱이 열릴 수 있다. */
+    fun webIntent(url: String): Intent = Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
+
     fun appDetailsSettingsIntent(): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", appContext.packageName, null))
 

@@ -20,6 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
@@ -50,6 +54,10 @@ import io.github.herfar.barodial.testing.FakeCallHistoryRepository
 import io.github.herfar.barodial.testing.FakeCallRecordingsRepository
 import io.github.herfar.barodial.testing.FakeContactsRepository
 import io.github.herfar.barodial.testing.Harness
+import io.github.herfar.barodial.testing.InMemorySettingsRepository
+import io.github.herfar.barodial.testing.KakaoSamples
+import io.github.herfar.barodial.data.places.HttpResult
+import io.github.herfar.barodial.data.settings.AppSettings
 import io.github.herfar.barodial.testing.TestContacts
 import io.github.herfar.barodial.ui.theme.BaroDialTheme
 import org.junit.Assert.assertEquals
@@ -581,5 +589,198 @@ class AppUiTest {
         rule.waitForIdle()
         rule.onNodeWithTag("expandedLayout").assertExists()
         rule.onNodeWithTag("detailName").assertTextEquals("이철수")
+    }
+
+    // ---------------------------------------------------------------- 온라인 상호·기관 검색
+
+    private val kakaoKey = "0123456789abcdef0123456789abcdef"
+
+    private fun onlineHarness(settings: AppSettings = AppSettings(onlineSearchEnabled = true, kakaoRestApiKey = kakaoKey)) =
+        Harness(app, settings = InMemorySettingsRepository(settings)).also {
+            it.placeTransport.respond(
+                mapOf(
+                    "전기공사협회" to KakaoSamples.ELECTRIC_ASSOCIATION,
+                    "한국전력공사" to KakaoSamples.KEPCO,
+                    "김포시청" to KakaoSamples.GIMPO_CITY_HALL,
+                ),
+            )
+        }
+
+    private fun searchFor(text: String) {
+        rule.onNodeWithTag("searchBar").performClick()
+        rule.onNodeWithTag("searchField").performTextInput(text)
+        rule.waitForIdle()
+    }
+
+    private fun scrollToTag(tag: String) {
+        rule.onNodeWithTag("searchResults").performScrollToNode(hasTestTag(tag))
+    }
+
+    @Test
+    fun kepcoShowsContactsAndOnlineBranchesSeparatelyAndDialsViaSamsungPhone() {
+        val h = onlineHarness()
+        show(h)
+        searchFor("한국전력공사")
+        // 연락처(회사명 한국전력공사인 '고객센터')는 즉시, 온라인 결과는 따로
+        waitForTag("contactResult_${TestContacts.KEPCO.id}")
+        waitForTag("place_k1")
+        rule.onNodeWithTag("localHeader").assertExists()
+        scrollToTag("onlineHeader")
+        rule.onNodeWithTag("onlineHeader").assertIsDisplayed()
+
+        // 같은 이름 두 곳은 지역으로 구분
+        scrollToTag("place_k1")
+        rule.onNodeWithTag("placeRegion_k1", useUnmergedTree = true).assertTextEquals("전남 나주시")
+        scrollToTag("place_k2")
+        rule.onNodeWithTag("placeRegion_k2", useUnmergedTree = true).assertTextEquals("서울 중구")
+        // 상호·전화·업종·주소
+        rule.onNodeWithTag("placePhone_k2", useUnmergedTree = true).assertTextEquals("02-0000-2002 · 공사,공단")
+        rule.onNode(hasText("서울 중구 예시로 6")).assertExists()
+
+        // 전화 → ACTION_DIAL 로 삼성 기본 전화에 번호만 전달
+        rule.onNodeWithTag("placeCall_k2").performClick()
+        rule.waitForIdle()
+        val started = startedActivity()
+        assertEquals(Intent.ACTION_DIAL, started!!.action)
+        assertEquals("tel:0200002002", started.data.toString())
+        assertTrue("카카오 결과는 검색기록에 남기지 않는다", h.history.list.value.isEmpty())
+    }
+
+    @Test
+    fun electricAssociationRegionalChaptersAndPlaceWithoutPhone() {
+        val h = onlineHarness()
+        show(h)
+        searchFor("전기공사협회")
+        waitForTag("place_e1")
+        rule.onNodeWithTag("localNone").assertExists() // 연락처에는 없음
+        for (id in listOf("e1", "e2", "e3")) {
+            scrollToTag("place_$id")
+            rule.onNodeWithTag("placeCall_$id").assertIsEnabled()
+        }
+        scrollToTag("place_e4")
+        rule.onNodeWithTag("placePhone_e4", useUnmergedTree = true).assertTextEquals("전화번호 없음 · 협회")
+        rule.onNodeWithTag("placeCall_e4").assertIsNotEnabled()
+        // 출처·저장 정책 안내, 카카오맵 열기
+        scrollToTag("onlineFooter")
+        rule.onNodeWithTag("onlineFooter").assertIsDisplayed()
+        scrollToTag("place_e4")
+        rule.onNodeWithTag("placeMap_e4").performClick()
+        rule.waitForIdle()
+        assertEquals("http://place.map.kakao.com/e4", startedActivity()?.data.toString())
+    }
+
+    @Test
+    fun gimpoCityHallExactMatchComesFirst() {
+        val h = onlineHarness()
+        show(h)
+        searchFor("김포시청")
+        waitForTag("place_g2")
+        val exact = rule.onNodeWithTag("place_g2").getBoundsInRoot()
+        val annex = rule.onNodeWithTag("place_g1").getBoundsInRoot()
+        // 영역 머리글 아래로 위→아래 순서: 정확히 일치하는 '김포시청'이 먼저
+        assertTrue("김포시청이 민원실보다 위", exact.top < annex.top)
+        assertEquals(listOf("김포시청"), h.placeTransport.queries())
+    }
+
+    @Test
+    fun offlineKeepsContactSearchWorking() {
+        val h = onlineHarness()
+        h.network.online = false
+        show(h)
+        searchFor("김철수")
+        waitForTag("contactResult_1")
+        waitForTag("onlineError")
+        rule.onNode(hasText("인터넷에 연결되어 있지 않아", substring = true)).assertExists()
+        rule.onNodeWithTag("contactResult_1").assertIsDisplayed()
+        assertTrue(h.placeTransport.requests.isEmpty())
+        // 연결이 돌아오면 [다시 시도]
+        h.network.online = true
+        rule.onNodeWithTag("onlineErrorAction").performClick()
+        rule.waitUntil(3_000) { h.placeTransport.requests.isNotEmpty() }
+    }
+
+    @Test
+    fun kakaoErrorsAndQuotaAreExplained() {
+        val h = onlineHarness()
+        h.placeTransport.handler = { HttpResult(400, KakaoSamples.ERROR_QUOTA) }
+        show(h)
+        searchFor("김포시청")
+        waitForTag("onlineError")
+        rule.onNode(hasText("호출 한도를 넘었습니다", substring = true)).assertExists()
+
+        h.placeTransport.handler = { HttpResult(401, KakaoSamples.ERROR_BAD_KEY) }
+        rule.onNodeWithTag("searchField").performTextReplacement("한국전력공사")
+        rule.waitUntil(3_000) { rule.onAllNodes(hasText("REST API 키가 올바르지 않습니다", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+
+        h.placeTransport.handler = { HttpResult(403, KakaoSamples.ERROR_DISABLED) }
+        rule.onNodeWithTag("searchField").performTextReplacement("전기공사협회")
+        rule.waitUntil(3_000) { rule.onAllNodes(hasText("[사용 설정]을 ON", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        // [설정] → 온라인 검색 설정 화면 (설정 방법 안내 포함)
+        rule.onNodeWithTag("onlineErrorAction").performClick()
+        waitForTag("onlineSetup")
+        rule.onNodeWithTag("onlineSetupList").performScrollToNode(hasTestTag("onlineGuide"))
+        rule.onNodeWithTag("onlineGuide").assertTextContains("[사용 설정]", substring = true)
+    }
+
+    @Test
+    fun withoutSetupTheAppExplainsHowAndSendsNothing() {
+        val h = onlineHarness(AppSettings())
+        show(h)
+        searchFor("김포시청")
+        waitForTag("onlineOffHint")
+        rule.onNodeWithTag("onlineOffHintClose").performClick()
+        rule.waitUntil(3_000) { h.settings.current.value.onlineSearchHintDismissed }
+        rule.waitUntil(3_000) { rule.onAllNodesWithTag("onlineOffHint").fetchSemanticsNodes().isEmpty() }
+        assertTrue(h.placeTransport.requests.isEmpty())
+    }
+
+    @Test
+    fun settingsEnableOnlineSearchWithOwnKey() {
+        val h = onlineHarness(AppSettings())
+        show(h)
+        rule.runOnUiThread { h.viewModel.openSettings() }
+        waitForTag("settingsScreen")
+        rule.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsOnlineSwitch"))
+        rule.onNodeWithTag("settingsOnlineSwitch").performClick()
+        // 연결 설정이 없으니 설정 화면이 바로 열린다
+        waitForTag("onlineSetup")
+        rule.onNodeWithTag("onlineTestButton").performClick()
+        rule.waitUntil(3_000) { rule.onAllNodesWithTag("onlineTestResult").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("onlineTestResult").assertTextContains("형식이 올바르지 않습니다", substring = true)
+        assertTrue("형식이 틀리면 요청하지 않는다", h.placeTransport.requests.isEmpty())
+
+        rule.onNodeWithTag("onlineKeyField").performTextInput(kakaoKey)
+        rule.onNodeWithTag("onlineTestButton").performClick()
+        rule.waitUntil(3_000) { rule.onAllNodes(hasText("연결됨", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("onlineSaveButton").performClick()
+        rule.waitUntil(3_000) { h.settings.current.value.kakaoRestApiKey == kakaoKey && h.settings.current.value.onlineSearchEnabled }
+        // 저장하면 설정 목록으로 돌아오고 상태에 키 끝 4자리만 보인다
+        waitForTag("settingsScreen")
+        rule.onNodeWithTag("settingsList").performScrollToNode(hasTestTag("settingsOnlineConnection"))
+        rule.onNode(hasText("카카오 REST API 키 (…cdef)")).assertExists()
+
+        // 프록시 방식: https 주소와 토큰
+        rule.onNodeWithTag("settingsOnlineConnection").performClick()
+        waitForTag("onlineSetup")
+        rule.onNodeWithTag("onlineModeProxy").performClick()
+        rule.onNodeWithTag("onlineProxyUrlField").performTextInput("https://proxy.example.com")
+        rule.onNodeWithTag("onlineProxyTokenField").performTextInput("my-token")
+        rule.onNodeWithTag("onlineSaveButton").performClick()
+        rule.waitUntil(3_000) { h.settings.current.value.proxyUrl == "https://proxy.example.com" }
+        assertEquals(io.github.herfar.barodial.data.settings.PlaceApiMode.PROXY, h.settings.current.value.placeApiMode)
+        assertEquals("my-token", h.settings.current.value.proxyToken)
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h900dp-xhdpi")
+    fun onlineResultsWorkInUnfoldedLayout() {
+        val h = onlineHarness()
+        show(h)
+        rule.onNodeWithTag("expandedLayout").assertExists()
+        searchFor("한국전력공사")
+        waitForTag("place_k3")
+        rule.onNodeWithTag("placeCall_k3").performClick()
+        rule.waitForIdle()
+        assertEquals(Intent.ACTION_DIAL, startedActivity()?.action)
     }
 }

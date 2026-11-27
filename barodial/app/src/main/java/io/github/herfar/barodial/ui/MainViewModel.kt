@@ -29,6 +29,16 @@ import io.github.herfar.barodial.data.calllog.CallHistoryRepository
 import io.github.herfar.barodial.data.calllog.CallLogEntry
 import io.github.herfar.barodial.data.calllog.CallLogGrouping
 import io.github.herfar.barodial.data.contacts.Contact
+import io.github.herfar.barodial.data.places.KakaoLocalClient
+import io.github.herfar.barodial.data.places.LocationProvider
+import io.github.herfar.barodial.data.places.NetworkMonitor
+import io.github.herfar.barodial.data.places.NoLocationProvider
+import io.github.herfar.barodial.data.places.Place
+import io.github.herfar.barodial.data.places.PlaceApiConfig
+import io.github.herfar.barodial.data.places.PlaceQuery
+import io.github.herfar.barodial.data.places.PlaceSearchError
+import io.github.herfar.barodial.data.places.PlaceSearchException
+import io.github.herfar.barodial.data.places.PlaceSearchRules
 import io.github.herfar.barodial.data.contacts.ContactRef
 import io.github.herfar.barodial.data.contacts.ContactUris
 import io.github.herfar.barodial.data.contacts.ContactsRepository
@@ -45,10 +55,14 @@ import io.github.herfar.barodial.data.recordings.RecordingMatcher
 import io.github.herfar.barodial.data.recordings.RecordingsAvailability
 import io.github.herfar.barodial.data.search.ContactSearchEngine
 import io.github.herfar.barodial.data.settings.AppSettings
+import io.github.herfar.barodial.data.settings.PlaceApiMode
 import io.github.herfar.barodial.data.settings.SettingsRepository
 import io.github.herfar.barodial.data.settings.StartTab
 import io.github.herfar.barodial.dial.DefaultDialerInfo
 import io.github.herfar.barodial.dial.DialerLauncher
+import io.github.herfar.barodial.ui.search.OnlinePlaceSearch
+import io.github.herfar.barodial.ui.search.OnlineSearchUi
+import io.github.herfar.barodial.ui.search.onlineSearchConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -84,6 +98,10 @@ class MainViewModel(
     private val dialer: DialerLauncher,
     private val engine: ContactSearchEngine,
     private val savedState: SavedStateHandle,
+    private val placeClient: KakaoLocalClient = KakaoLocalClient(),
+    private val locationProvider: LocationProvider = NoLocationProvider,
+    private val networkMonitor: NetworkMonitor = NetworkMonitor { true },
+    onlineDebounceMillis: Long = PlaceSearchRules.DEBOUNCE_MILLIS,
 ) : ViewModel() {
 
     // ---------------------------------------------------------------- 데이터
@@ -186,6 +204,27 @@ class MainViewModel(
         .mapLatest { input -> withContext(Dispatchers.Default) { buildSearch(input) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SearchUiState())
 
+    /**
+     * 온라인 상호·기관 검색 (카카오 로컬). 연락처 검색과 별개로 돌아가므로 실패해도 연락처 결과에는 영향이 없다.
+     * 결과는 메모리에만 있고 검색을 닫으면 사라진다.
+     */
+    private val onlineSearch = OnlinePlaceSearch(
+        scope = viewModelScope,
+        client = placeClient,
+        location = locationProvider,
+        network = networkMonitor,
+        query = combine(queryFlow, snapshotFlow { searchActive }) { q, active -> if (active) q else "" },
+        config = settings.map { it.onlineSearchConfig() },
+        debounceMillis = onlineDebounceMillis,
+    )
+    val onlineUi: StateFlow<OnlineSearchUi> = onlineSearch.state
+    val onlineNearbySelected: StateFlow<Boolean> = onlineSearch.nearbySelected
+
+    /** 설정 화면의 [연결 확인] 결과 */
+    var connectionTest by mutableStateOf<ConnectionTestState>(ConnectionTestState.Idle)
+        private set
+    private var connectionTestJob: Job? = null
+
     val homeUi: StateFlow<HomeUiState> = combine(contactsState, favoriteEntries, historyEntries, settings) { cs, f, h, s ->
         buildHome(cs, f, h, s)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, HomeUiState())
@@ -251,7 +290,7 @@ class MainViewModel(
         if (searchActive) exitSearch()
         favoritesEditMode = false
         if (d != Destination.RECENTS) _callFilter.value = CallFilter.ALL
-        backStack.removeAll { it is Route.Settings || it is Route.RecordingDiagnostics }
+        backStack.removeAll { it is Route.Settings || it is Route.RecordingDiagnostics || it is Route.OnlineSearchSetup }
         destination = d
         savedState[KEY_DEST] = d.name
     }
@@ -367,6 +406,7 @@ class MainViewModel(
     }
 
     fun exitSearch() {
+        onlineSearch.reset()
         searchActive = false
         savedState[KEY_SEARCH_ACTIVE] = false
         searchField.clearText()
@@ -592,6 +632,90 @@ class MainViewModel(
     fun editInContactsApp(contact: Contact) =
         sendEffect(UiEffect.Launch(listOf(dialer.editContactIntent(contact.id, contact.lookupKey)), R.string.error_no_contacts_app))
 
+    // ---------------------------------------------------------------- 온라인 상호 검색
+
+    /**
+     * 온라인 결과의 전화 버튼: 항상 ACTION_DIAL 로 기본 전화 앱(삼성 전화) 다이얼 화면에 번호만 넘긴다.
+     * (외부에서 온 번호라 원터치 발신 설정과 관계없이 사용자가 한 번 확인하고 건다)
+     * 카카오 정책상 장소 정보를 저장할 수 없으므로 검색기록·재발신 번호에도 남기지 않는다.
+     */
+    fun callPlace(place: Place) {
+        if (!place.hasPhone) return
+        val number = KoreanPhoneNumbers.sanitizeDialInput(place.phone)
+        if (number.isEmpty()) return
+        sendEffect(UiEffect.Launch(listOf(dialer.callIntent(number, direct = false)), R.string.error_no_dialer))
+        if (searchActive && settings.value.clearSearchAfterCall) exitSearch()
+    }
+
+    /** 카카오맵 장소 상세 페이지 (카카오맵 앱이 있으면 앱, 없으면 브라우저) */
+    fun openPlace(place: Place) {
+        val url = place.placeUrl
+        if (!url.startsWith("https://") && !url.startsWith("http://")) return
+        sendEffect(UiEffect.Launch(listOf(dialer.webIntent(url)), R.string.error_no_browser))
+    }
+
+    fun retryOnlineSearch() = onlineSearch.retry()
+
+    fun loadMoreOnline() = onlineSearch.loadMore()
+
+    /** '가까운 순': 위치 권한이 없으면 요청한다 (거부해도 전국 결과는 그대로). */
+    fun setOnlineNearby(enabled: Boolean) {
+        onlineSearch.setNearby(enabled)
+        if (enabled && !locationProvider.hasPermission()) requestLocationPermission()
+    }
+
+    fun requestLocationPermission() =
+        sendEffect(UiEffect.RequestPermission(locationProvider.permission, PermissionPurpose.LOCATION))
+
+    fun dismissOnlineHint() = updateSettings { it.copy(onlineSearchHintDismissed = true) }
+
+    /** 온라인 검색 설정 화면 (검색 결과의 안내나 설정에서 연다) */
+    fun openOnlineSearchSetup() {
+        if (searchActive) exitSearch()
+        sendEffect(UiEffect.HideKeyboard)
+        push(Route.OnlineSearchSetup)
+    }
+
+    fun setOnlineSearchEnabled(enabled: Boolean) = updateSettings { it.copy(onlineSearchEnabled = enabled) }
+
+    /** 연결 설정 저장. 올바른 설정이면 온라인 검색도 켠다. */
+    fun saveOnlineSearchSetup(mode: PlaceApiMode, key: String, proxyUrl: String, proxyToken: String) {
+        updateSettings {
+            val next = it.copy(placeApiMode = mode, kakaoRestApiKey = key.trim(), proxyUrl = proxyUrl.trim(), proxyToken = proxyToken.trim())
+            if (next.onlineSearchConfig().api != PlaceApiConfig.None) next.copy(onlineSearchEnabled = true) else next
+        }
+        clearConnectionTest()
+        sendEffect(UiEffect.Message(R.string.message_online_saved))
+        if (backStack.lastOrNull() == Route.OnlineSearchSetup) popRoute()
+    }
+
+    /** 설정의 [연결 확인]: 입력한 키·프록시로 '김포시청'을 1건만 검색해 본다 (사용자가 누를 때만). */
+    fun testOnlineConnection(config: PlaceApiConfig) {
+        connectionTestJob?.cancel()
+        if (config == PlaceApiConfig.None) {
+            connectionTest = ConnectionTestState.Invalid
+            return
+        }
+        connectionTest = ConnectionTestState.Running
+        connectionTestJob = viewModelScope.launch {
+            connectionTest = if (!networkMonitor.isOnline()) {
+                ConnectionTestState.Failed(PlaceSearchError.Offline)
+            } else {
+                try {
+                    val page = placeClient.searchKeyword(config, PlaceQuery(CONNECTION_TEST_QUERY, size = 1))
+                    ConnectionTestState.Success(page.totalCount)
+                } catch (e: PlaceSearchException) {
+                    ConnectionTestState.Failed(e.error)
+                }
+            }
+        }
+    }
+
+    fun clearConnectionTest() {
+        connectionTestJob?.cancel()
+        connectionTest = ConnectionTestState.Idle
+    }
+
     /** 번호 없이 새 연락처 만들기 (연락처 탭의 + 버튼) */
     fun createContact() = launchContactEditor(number = null, listOf(dialer.insertContactIntent(null)))
 
@@ -810,6 +934,10 @@ class MainViewModel(
                 pendingDirectCallEnable = false
             }
             PermissionPurpose.CALL_LOG -> callHistoryRepository.onPermissionResult(granted)
+            PermissionPurpose.LOCATION -> {
+                onlineSearch.onLocationPermissionChanged()
+                if (!granted) sendEffect(UiEffect.Message(R.string.message_location_denied))
+            }
             PermissionPurpose.RECORDINGS -> {
                 recordingsRepository.onPermissionResult(granted)
                 if (!granted) sendEffect(UiEffect.Message(R.string.message_recordings_denied))
@@ -827,6 +955,7 @@ class MainViewModel(
         private const val KEY_DIAL = "dial"
         private const val KEY_SEARCH_ACTIVE = "searchActive"
         private const val KEY_ADD_CONTACT = "addContact"
+        private const val CONNECTION_TEST_QUERY = "김포시청"
 
         /** 연락처 앱에서 돌아온 뒤 저장 결과(연락처 다시 읽기)를 기다리는 시간 */
         internal const val PENDING_CONTACT_EDIT_TIMEOUT_MS = 30_000L
@@ -854,6 +983,9 @@ class MainViewModel(
                     dialer = c.dialerLauncher,
                     engine = c.searchEngine,
                     savedState = createSavedStateHandle(),
+                    placeClient = c.placeClient,
+                    locationProvider = c.locationProvider,
+                    networkMonitor = c.networkMonitor,
                 )
             }
         }

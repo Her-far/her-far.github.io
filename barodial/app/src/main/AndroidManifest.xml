@@ -11,9 +11,16 @@
       - READ_CALL_LOG : 최근기록 탭에서 사용자가 [허용]을 누를 때만 요청 (읽기 전용).
                         Android 10+ 의 hard-restricted 권한이라 설치 방식에 따라 허용될 수도, 막힐 수도 있다.
                         사용자 기기(Galaxy Z Fold7)에서 adb 설치 시 허용됨을 확인했다. 막히면 삼성 전화 기록 화면으로 안내한다.
-      - INTERNET 권한은 선언하지 않는다. (외부 서버 통신 불가 = 개인정보 외부 전송 불가)
+      - INTERNET / ACCESS_NETWORK_STATE
+                      : '온라인 상호·기관 검색'(설정에서 켜야 동작, 기본 꺼짐)에만 쓴다.
+                        보내는 정보는 검색어(2글자 이상, 번호·초성 제외)와, '가까운 순'을 켰을 때의 대략적인 좌표뿐이다.
+                        연락처·통화기록·녹음은 어떤 경우에도 보내지 않는다. 받은 결과는 화면에만 표시하고 저장하지 않는다(카카오 정책).
+      - ACCESS_COARSE_LOCATION : 온라인 검색에서 '가까운 순'을 켤 때만 요청 (대략적인 위치, 저장하지 않음)
       - 기본 전화 앱 역할(ROLE_DIALER)을 요청하지 않으며, InCallService/CallScreeningService 를 구현하지 않는다.
     -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />

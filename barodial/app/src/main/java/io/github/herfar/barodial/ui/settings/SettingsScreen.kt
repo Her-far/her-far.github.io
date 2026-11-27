@@ -47,7 +47,9 @@ import io.github.herfar.barodial.BuildConfig
 import io.github.herfar.barodial.R
 import io.github.herfar.barodial.data.calllog.CallHistoryAvailability
 import io.github.herfar.barodial.data.contacts.ContactsState
+import io.github.herfar.barodial.data.places.PlaceApiConfig
 import io.github.herfar.barodial.data.recordings.RecordingsAvailability
+import io.github.herfar.barodial.ui.search.placeApiConfig
 import io.github.herfar.barodial.data.settings.AppSettings
 import io.github.herfar.barodial.data.settings.StartTab
 import io.github.herfar.barodial.data.settings.ThemeMode
@@ -67,6 +69,7 @@ class SettingsActions(
     val openDefaultApps: () -> Unit,
     val requestRecordings: () -> Unit,
     val openDiagnostics: () -> Unit,
+    val openOnlineSetup: () -> Unit = {},
 )
 
 @Composable
@@ -167,6 +170,29 @@ fun SettingsScreen(
                         subtitle = stringResource(R.string.settings_clear_history_desc),
                         onClick = { confirmClear = true },
                         modifier = Modifier.testTag("settingsClearHistory"),
+                    )
+                }
+
+                item("onlineHeader") { Header(R.string.settings_section_online) }
+                item("onlineEnabled") {
+                    SwitchRow(
+                        title = stringResource(R.string.settings_online_enable),
+                        subtitle = stringResource(R.string.settings_online_enable_desc),
+                        checked = settings.onlineSearchEnabled,
+                        onChange = { v ->
+                            actions.update { it.copy(onlineSearchEnabled = v) }
+                            // 켰는데 연결 설정이 없으면 바로 설정 화면을 연다.
+                            if (v && settings.placeApiConfig() == PlaceApiConfig.None) actions.openOnlineSetup()
+                        },
+                        modifier = Modifier.testTag("settingsOnlineSwitch"),
+                    )
+                }
+                item("onlineConnection") {
+                    ActionRow(
+                        title = stringResource(R.string.settings_online_connection),
+                        subtitle = onlineConnectionStatus(settings),
+                        onClick = actions.openOnlineSetup,
+                        modifier = Modifier.testTag("settingsOnlineConnection"),
                     )
                 }
 

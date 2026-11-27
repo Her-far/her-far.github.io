@@ -16,6 +16,12 @@ import io.github.herfar.barodial.data.favorites.FavoritesRepository
 import io.github.herfar.barodial.data.history.HistoryEntry
 import io.github.herfar.barodial.data.history.HistoryKind
 import io.github.herfar.barodial.data.history.SearchHistoryRepository
+import io.github.herfar.barodial.data.places.GeoPoint
+import io.github.herfar.barodial.data.places.HttpResult
+import io.github.herfar.barodial.data.places.HttpTransport
+import io.github.herfar.barodial.data.places.KakaoLocalClient
+import io.github.herfar.barodial.data.places.LocationProvider
+import io.github.herfar.barodial.data.places.NetworkMonitor
 import io.github.herfar.barodial.data.recordings.CallRecording
 import io.github.herfar.barodial.data.recordings.CallRecordingsRepository
 import io.github.herfar.barodial.data.recordings.RecordingsAvailability
@@ -150,6 +156,35 @@ class FakeCallRecordingsRepository(
     }
 }
 
+/** 카카오 API 대신 응답하는 가짜 HTTP. 기본은 빈 결과. */
+class FakePlaceTransport : HttpTransport {
+    val requests = mutableListOf<Pair<String, Map<String, String>>>()
+    var handler: suspend (url: String) -> HttpResult = { HttpResult(200, KakaoSamples.page()) }
+
+    override suspend fun get(url: String, headers: Map<String, String>): HttpResult {
+        requests += url to headers
+        return handler(url)
+    }
+
+    /** 보낸 검색어 목록 */
+    fun queries(): List<String?> = requests.map { android.net.Uri.parse(it.first).getQueryParameter("query") }
+
+    /** 검색어별 응답 지정 (없으면 빈 결과) */
+    fun respond(byQuery: Map<String, String>) {
+        handler = { url -> HttpResult(200, byQuery[android.net.Uri.parse(url).getQueryParameter("query")] ?: KakaoSamples.page()) }
+    }
+}
+
+class FakeLocationProvider(var granted: Boolean = false, var point: GeoPoint? = GeoPoint(37.6152, 126.7156)) : LocationProvider {
+    override val permission: String = "android.permission.ACCESS_COARSE_LOCATION"
+    override fun hasPermission(): Boolean = granted
+    override suspend fun currentLocation(): GeoPoint? = if (granted) point else null
+}
+
+class FakeNetworkMonitor(var online: Boolean = true) : NetworkMonitor {
+    override fun isOnline(): Boolean = online
+}
+
 /** 가짜 저장소로 ViewModel 을 만드는 도우미 */
 class Harness(
     context: Context,
@@ -159,6 +194,11 @@ class Harness(
     val settings: InMemorySettingsRepository = InMemorySettingsRepository(),
     val callHistory: FakeCallHistoryRepository = FakeCallHistoryRepository(),
     val recordings: FakeCallRecordingsRepository = FakeCallRecordingsRepository(),
+    val placeTransport: FakePlaceTransport = FakePlaceTransport(),
+    val location: FakeLocationProvider = FakeLocationProvider(),
+    val network: FakeNetworkMonitor = FakeNetworkMonitor(),
+    /** UI 테스트에서는 기다림 없이 바로 검색한다 (디바운스는 OnlinePlaceSearchTest 에서 가상 시간으로 확인) */
+    onlineDebounceMillis: Long = 0L,
 ) {
     val launcher = DialerLauncher(context)
     val viewModel = MainViewModel(
@@ -171,6 +211,10 @@ class Harness(
         dialer = launcher,
         engine = FakeContactsRepository.engine,
         savedState = SavedStateHandle(),
+        placeClient = KakaoLocalClient(placeTransport),
+        locationProvider = location,
+        networkMonitor = network,
+        onlineDebounceMillis = onlineDebounceMillis,
     )
 }
 

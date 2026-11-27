@@ -13,8 +13,8 @@ android {
         minSdk = 29
         // Galaxy Z Fold7 출시 OS(Android 16, API 36) 기준
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -58,6 +58,8 @@ android {
             all {
                 it.systemProperty("robolectric.pixelCopyRenderMode", "hardware")
                 it.systemProperty("barodial.screenshotDir", rootProject.file("docs/screenshots").absolutePath)
+                // 실제 카카오 서버 확인 테스트(KakaoLiveApiTest)는 -PkakaoLive=true 일 때만
+                it.systemProperty("barodial.kakaoLive", (project.findProperty("kakaoLive") ?: "false").toString())
                 it.maxHeapSize = "3g"
                 // JDK 17+ 에서 Robolectric 이 Android 런타임 내부를 다룰 수 있도록 모듈 접근을 연다.
                 it.jvmArgs(

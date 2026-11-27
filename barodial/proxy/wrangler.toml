@@ -1,0 +1,11 @@
+# 바로전화 온라인 상호 검색 프록시 (Cloudflare Workers)
+# 배포: npx wrangler deploy
+# 비밀 값: npx wrangler secret put KAKAO_REST_API_KEY   (필수)
+#          npx wrangler secret put APP_TOKEN            (선택, 권장)
+name = "barodial-place-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 요청·응답 내용을 기록하지 않는다 (검색어 로그 없음).
+[observability]
+enabled = false

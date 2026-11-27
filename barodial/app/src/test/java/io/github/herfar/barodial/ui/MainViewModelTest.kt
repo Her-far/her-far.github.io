@@ -496,4 +496,115 @@ class MainViewModelTest {
         assertEquals(ContactsContract.Contacts.CONTENT_TYPE, intent.type)
         assertNull(intent.getStringExtra(ContactsContract.Intents.Insert.PHONE))
     }
+
+    // ---------------------------------------------------------------- 온라인 상호 검색
+
+    private val kakaoKey = "0123456789abcdef0123456789abcdef"
+
+    private fun onlineHarness(directCall: Boolean = false) = Harness(
+        app,
+        settings = InMemorySettingsRepository(AppSettings(onlineSearchEnabled = true, kakaoRestApiKey = kakaoKey, directCall = directCall)),
+    ).also {
+        it.placeTransport.respond(
+            mapOf(
+                "김포시청" to io.github.herfar.barodial.testing.KakaoSamples.GIMPO_CITY_HALL,
+                "전기공사협회" to io.github.herfar.barodial.testing.KakaoSamples.ELECTRIC_ASSOCIATION,
+                "한국전력공사" to io.github.herfar.barodial.testing.KakaoSamples.KEPCO,
+            ),
+        )
+    }
+
+    private fun onlineResults(): io.github.herfar.barodial.ui.search.OnlineSearchUi.Results {
+        awaitUntil(describe = { "online=${h.viewModel.onlineUi.value}" }) {
+            h.viewModel.onlineUi.value is io.github.herfar.barodial.ui.search.OnlineSearchUi.Results
+        }
+        return h.viewModel.onlineUi.value as io.github.herfar.barodial.ui.search.OnlineSearchUi.Results
+    }
+
+    @Test
+    fun onlinePlaceCallAlwaysUsesActionDialAndIsNeverRecorded() {
+        shadowOf(app).grantPermissions(Manifest.permission.CALL_PHONE)
+        start(onlineHarness(directCall = true))
+        awaitUntil { h.viewModel.settings.value.directCall && h.viewModel.settings.value.onlineSearchEnabled }
+        search("김포시청")
+        val hall = onlineResults().items.first().place
+        assertEquals("김포시청", hall.name)
+        h.viewModel.callPlace(hall)
+        awaitUntil { launchedIntents().isNotEmpty() }
+        val intent = launchedIntents().single()
+        assertEquals("원터치 발신을 켜도 온라인 번호는 다이얼 화면으로", Intent.ACTION_DIAL, intent.action)
+        assertEquals("tel:0310003001", intent.data.toString())
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("카카오 결과는 검색기록에 남기지 않는다", h.history.list.value.isEmpty())
+        assertNull(h.history.lastDialed.value)
+    }
+
+    @Test
+    fun placeWithoutPhoneCannotBeCalledButOpensKakaoMap() {
+        start(onlineHarness())
+        search("전기공사협회")
+        val noPhone = onlineResults().items.first { it.place.id == "e4" }.place
+        h.viewModel.callPlace(noPhone)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(launchedIntents().isEmpty())
+        h.viewModel.openPlace(noPhone)
+        awaitUntil { launchedIntents().isNotEmpty() }
+        assertEquals(Intent.ACTION_VIEW, launchedIntents().single().action)
+        assertEquals("http://place.map.kakao.com/e4", launchedIntents().single().data.toString())
+    }
+
+    @Test
+    fun onlineFailureDoesNotAffectContactSearch() {
+        start(onlineHarness())
+        h.placeTransport.handler = { throw java.net.SocketTimeoutException("timeout") }
+        search("한국전력공사")
+        val local = h.viewModel.searchUi.value.rows.filterIsInstance<SearchRow.ContactHit>()
+        assertEquals("회사명으로 연락처(고객센터)를 찾는다", TestContacts.KEPCO.id, local.single().result.contact.id)
+        awaitUntil { h.viewModel.onlineUi.value is io.github.herfar.barodial.ui.search.OnlineSearchUi.Failed }
+        assertEquals(
+            io.github.herfar.barodial.data.places.PlaceSearchError.Network,
+            (h.viewModel.onlineUi.value as io.github.herfar.barodial.ui.search.OnlineSearchUi.Failed).error,
+        )
+        assertEquals(1, h.viewModel.searchUi.value.rows.filterIsInstance<SearchRow.ContactHit>().size)
+    }
+
+    @Test
+    fun closingSearchDiscardsOnlineResults() {
+        start(onlineHarness())
+        search("김포시청")
+        onlineResults()
+        h.viewModel.setOnlineNearby(true)
+        h.viewModel.exitSearch()
+        awaitUntil { h.viewModel.onlineUi.value == io.github.herfar.barodial.ui.search.OnlineSearchUi.Hidden }
+        assertEquals(false, h.viewModel.onlineNearbySelected.value)
+    }
+
+    @Test
+    fun nearbyAsksForLocationPermissionOnlyWhenChosen() {
+        start(onlineHarness())
+        search("김포시청")
+        onlineResults()
+        assertTrue(effects.none { it is UiEffect.RequestPermission })
+        h.viewModel.setOnlineNearby(true)
+        awaitUntil { effects.any { it is UiEffect.RequestPermission && it.purpose == PermissionPurpose.LOCATION } }
+        h.viewModel.onPermissionResult(PermissionPurpose.LOCATION, granted = false)
+        awaitUntil { effects.any { it is UiEffect.Message && it.message == R.string.message_location_denied } }
+        val r = onlineResults()
+        assertEquals("거부해도 전국 결과는 보인다", io.github.herfar.barodial.ui.search.NearbyState.PERMISSION_NEEDED, r.nearby)
+    }
+
+    @Test
+    fun connectionTestReportsResultWithoutSaving() {
+        start(onlineHarness())
+        h.viewModel.testOnlineConnection(io.github.herfar.barodial.data.places.PlaceApiConfig.None)
+        assertEquals(ConnectionTestState.Invalid, h.viewModel.connectionTest)
+        h.viewModel.testOnlineConnection(io.github.herfar.barodial.data.places.PlaceApiConfig.Direct(kakaoKey))
+        awaitUntil { h.viewModel.connectionTest is ConnectionTestState.Success }
+        assertEquals("김포시청", h.placeTransport.queries().last())
+        h.network.online = false
+        h.viewModel.testOnlineConnection(io.github.herfar.barodial.data.places.PlaceApiConfig.Direct(kakaoKey))
+        awaitUntil { h.viewModel.connectionTest is ConnectionTestState.Failed }
+        h.viewModel.clearConnectionTest()
+        assertEquals(ConnectionTestState.Idle, h.viewModel.connectionTest)
+    }
 }

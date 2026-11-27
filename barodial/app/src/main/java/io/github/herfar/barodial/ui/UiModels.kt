@@ -25,6 +25,9 @@ sealed interface Route {
 
     /** 통화 녹음 연결 진단 */
     data object RecordingDiagnostics : Route
+
+    /** 온라인 상호·기관 검색 설정 (키·프록시·설정 방법) */
+    data object OnlineSearchSetup : Route
 }
 
 /** 검색 결과 목록의 한 줄. 리스트 index 0 이 가장 관련도가 높다. */
@@ -111,7 +114,18 @@ data class PlayingRecording(val recording: CallRecording, val title: String)
 
 data class NumberPickerState(val contact: Contact)
 
-enum class PermissionPurpose { CONTACTS, CALL_PHONE, CALL_LOG, RECORDINGS }
+enum class PermissionPurpose { CONTACTS, CALL_PHONE, CALL_LOG, RECORDINGS, LOCATION }
+
+/** 설정 화면의 온라인 검색 [연결 확인] 결과 */
+sealed interface ConnectionTestState {
+    data object Idle : ConnectionTestState
+    data object Running : ConnectionTestState
+
+    /** 키·주소 형식이 틀려 요청하지 않았다 */
+    data object Invalid : ConnectionTestState
+    data class Success(val totalCount: Int) : ConnectionTestState
+    data class Failed(val error: io.github.herfar.barodial.data.places.PlaceSearchError) : ConnectionTestState
+}
 
 /** ViewModel → UI 일회성 이벤트 */
 sealed interface UiEffect {

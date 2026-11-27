@@ -99,9 +99,12 @@ import io.github.herfar.barodial.ui.home.HomeScreen
 import io.github.herfar.barodial.ui.icons.AppIcons
 import io.github.herfar.barodial.ui.recents.RecentsActions
 import io.github.herfar.barodial.ui.recents.RecentsScreen
+import io.github.herfar.barodial.ui.search.OnlineActions
 import io.github.herfar.barodial.ui.search.SearchActions
 import io.github.herfar.barodial.ui.search.SearchResults
 import io.github.herfar.barodial.ui.settings.DiagnosticsActions
+import io.github.herfar.barodial.ui.settings.OnlineSearchSetupScreen
+import io.github.herfar.barodial.ui.settings.OnlineSetupActions
 import io.github.herfar.barodial.ui.settings.RecordingDiagnosticsScreen
 import io.github.herfar.barodial.ui.settings.SettingsActions
 import io.github.herfar.barodial.ui.settings.SettingsScreen
@@ -300,6 +303,21 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
     }
     val shown = Destination.entries[pagerState.currentPage]
 
+    val online by vm.onlineUi.collectAsStateWithLifecycle()
+    val nearbySelected by vm.onlineNearbySelected.collectAsStateWithLifecycle()
+    val onlineActions = remember(vm) {
+        OnlineActions(
+            callPlace = vm::callPlace,
+            openPlace = vm::openPlace,
+            retry = vm::retryOnlineSearch,
+            loadMore = vm::loadMoreOnline,
+            setNearby = vm::setOnlineNearby,
+            requestLocation = vm::requestLocationPermission,
+            openSettings = vm::openOnlineSearchSetup,
+            dismissHint = vm::dismissOnlineHint,
+            enterContactManually = vm::createContact,
+        )
+    }
     val searchActions = remember(vm) {
         SearchActions(
             openContact = vm::openContact,
@@ -394,7 +412,14 @@ private fun MainPane(vm: MainViewModel, expanded: Boolean) {
             }
             if (vm.searchActive) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    SearchResults(search, settings.resultsNearSearchBar, searchActions)
+                    SearchResults(
+                        state = search,
+                        nearSearchBar = settings.resultsNearSearchBar,
+                        actions = searchActions,
+                        online = online,
+                        nearbySelected = nearbySelected,
+                        onlineActions = onlineActions,
+                    )
                 }
             }
         }
@@ -497,6 +522,7 @@ private fun CompactOverlay(vm: MainViewModel) {
             is Route.NumberDetail -> NumberDetailRoute(vm, route, AppIcons.ArrowBack)
             Route.Settings -> SettingsRoute(vm, AppIcons.ArrowBack)
             Route.RecordingDiagnostics -> DiagnosticsRoute(vm, AppIcons.ArrowBack)
+            Route.OnlineSearchSetup -> OnlineSetupRoute(vm, AppIcons.ArrowBack)
         }
     }
 }
@@ -515,6 +541,7 @@ private fun RightPane(vm: MainViewModel) {
             is Route.NumberDetail -> NumberDetailRoute(vm, route, AppIcons.Close)
             Route.Settings -> SettingsRoute(vm, AppIcons.Close)
             Route.RecordingDiagnostics -> DiagnosticsRoute(vm, AppIcons.ArrowBack)
+            Route.OnlineSearchSetup -> OnlineSetupRoute(vm, AppIcons.ArrowBack)
         }
     }
 }
@@ -666,6 +693,7 @@ private fun SettingsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
             openDefaultApps = vm::openDefaultAppsSettings,
             requestRecordings = vm::requestRecordingsPermission,
             openDiagnostics = vm::openRecordingDiagnostics,
+            openOnlineSetup = vm::openOnlineSearchSetup,
         )
     }
     SettingsScreen(
@@ -679,6 +707,23 @@ private fun SettingsRoute(vm: MainViewModel, navigationIcon: ImageVector) {
         navigationIcon = navigationIcon,
         actions = actions,
     )
+}
+
+@Composable
+private fun OnlineSetupRoute(vm: MainViewModel, navigationIcon: ImageVector) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val actions = remember(vm) {
+        OnlineSetupActions(
+            back = {
+                vm.clearConnectionTest()
+                vm.popRoute()
+            },
+            setEnabled = vm::setOnlineSearchEnabled,
+            test = vm::testOnlineConnection,
+            save = vm::saveOnlineSearchSetup,
+        )
+    }
+    OnlineSearchSetupScreen(settings = settings, testState = vm.connectionTest, navigationIcon = navigationIcon, actions = actions)
 }
 
 fun Context.findActivity(): Activity? {

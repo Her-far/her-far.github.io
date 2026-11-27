@@ -10,6 +10,11 @@ import io.github.herfar.barodial.data.favorites.DataStoreFavoritesRepository
 import io.github.herfar.barodial.data.favorites.FavoritesRepository
 import io.github.herfar.barodial.data.history.DataStoreSearchHistoryRepository
 import io.github.herfar.barodial.data.history.SearchHistoryRepository
+import io.github.herfar.barodial.data.places.AndroidLocationProvider
+import io.github.herfar.barodial.data.places.AndroidNetworkMonitor
+import io.github.herfar.barodial.data.places.KakaoLocalClient
+import io.github.herfar.barodial.data.places.LocationProvider
+import io.github.herfar.barodial.data.places.NetworkMonitor
 import io.github.herfar.barodial.data.recordings.CallRecordingsRepository
 import io.github.herfar.barodial.data.recordings.MediaStoreCallRecordingsRepository
 import io.github.herfar.barodial.data.search.ContactSearchEngine
@@ -30,6 +35,9 @@ interface AppContainer {
     val callHistoryRepository: CallHistoryRepository
     val callRecordingsRepository: CallRecordingsRepository
     val dialerLauncher: DialerLauncher
+    val placeClient: KakaoLocalClient
+    val locationProvider: LocationProvider
+    val networkMonitor: NetworkMonitor
 }
 
 /** 앱 데이터는 이 파일 하나(기기 내부 저장소)에만 저장된다. */
@@ -53,4 +61,7 @@ class DefaultAppContainer(context: Context) : AppContainer {
         MediaStoreCallRecordingsRepository(appContext, appScope)
     }
     override val dialerLauncher: DialerLauncher by lazy { DialerLauncher(appContext) }
+    override val placeClient: KakaoLocalClient by lazy { KakaoLocalClient() }
+    override val locationProvider: LocationProvider by lazy { AndroidLocationProvider(appContext) }
+    override val networkMonitor: NetworkMonitor by lazy { AndroidNetworkMonitor(appContext) }
 }
